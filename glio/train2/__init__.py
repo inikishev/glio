@@ -17,7 +17,15 @@ from .cbs_monai import MONAI_Dice, MONAI_GeneralizedDice, MONAI_IoU, MONAI_ROCAU
 from .cbs_torcheval import Torcheval_Precision, Torcheval_Recall, Torcheval_AURPC, Torcheval_AUROC, Torcheval_Dice
 from .cbs_liveplot import LivePlot, LivePlot2, PlotSummary
 from .cbs_simpleprogress import SimpleProgressBar
-from .cbs_default_overrides import OneBatch_Closure, OneBatch_ClosureWithNoBackward, GradientFree, PassLossToOptimizerStep, SimpleMomentum, CallTrainAndEvalOnOptimizer
+from .cbs_default_overrides import (
+    OneBatch_Closure,
+    OneBatch_ClosureWithNoBackward,
+    GradientFree,
+    GradientFreeWithZeroGrad,
+    PassLossToOptimizerStep,
+    SimpleMomentum,
+    CallTrainAndEvalOnOptimizer,
+)
 from .cbs_performance import PerformanceTweaks
 
 

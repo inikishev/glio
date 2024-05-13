@@ -58,6 +58,18 @@ class GradientFree(CBMethod):
     def before_batch(self, learner: "Learner"):
         torch.set_grad_enabled(False)
 
+class GradientFreeWithZeroGrad(CBMethod):
+    order = 100
+    def backward(self, learner: "Learner"): pass
+    def enter(self, learner:"Learner"):
+        torch.set_grad_enabled(False)
+
+    def exit(self, learner: "Learner"):
+        torch.set_grad_enabled(True)
+
+    def before_batch(self, learner: "Learner"):
+        torch.set_grad_enabled(False)
+
 class PassLossToOptimizerStep(CBMethod):
     def optimizer_step(self, learner: "Learner"):
         learner.optimizer.step(learner.loss) # type:ignore
