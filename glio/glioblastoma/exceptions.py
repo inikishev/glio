@@ -1,0 +1,1 @@
+class GradioException(Exception): pass

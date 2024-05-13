@@ -1,0 +1,48 @@
+lr:
+    count: 92158
+    type: <class 'float'>
+    last value: 0.01
+    lowest: 0.01
+    highest: 0.01
+    mean: 0.009999999999999998
+
+test fn - monai.losses.dice.DiceLoss:
+    count: 56
+    type: <class 'float'>
+    last value: 0.1096508839028947
+    lowest: 0.10734454241204769
+    highest: 0.8263464197516441
+    mean: 0.18528712006345233
+
+test loss:
+    count: 56
+    type: <class 'float'>
+    last value: 0.1245817900019348
+    lowest: 0.1245817900019348
+    highest: 0.9749441638825431
+    mean: 0.2071425323138747
+
+time:
+    count: 92158
+    type: <class 'float'>
+    last value: 31048.67108640005
+    lowest: 22.998620499973185
+    highest: 31048.67108640005
+    mean: 15527.66041033229
+
+train fn - monai.losses.dice.DiceLoss:
+    count: 23026
+    type: <class 'float'>
+    last value: 0.19924817979335785
+    lowest: 0.09863092005252838
+    highest: 0.789408802986145
+    mean: 0.24486448285971954
+
+train loss:
+    count: 92158
+    type: <class 'float'>
+    last value: 0.2306346595287323
+    lowest: 0.11295410990715027
+    highest: 1.0248470306396484
+    mean: 0.27217237628662805
+
