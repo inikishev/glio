@@ -2,6 +2,7 @@
 from typing import Optional, Sequence, Any, Callable, Iterable
 from contextlib import contextmanager
 import random
+import math
 from types import EllipsisType
 from contextlib import nullcontext
 from itertools import zip_longest
@@ -557,7 +558,7 @@ def seeded_randperm(n,
     with seeded_rng(seed):
         return torch.randperm(n, out=out, dtype=dtype, layout=layout, device=device, pin_memory=pin_memory, requires_grad=requires_grad)
 
-def stepchunk(vec:torch.Tensor|np.ndarray, chunks:int, maxlength:int=None):
+def stepchunk(vec:torch.Tensor|np.ndarray, chunks:int, maxlength:Optional[int]=None):
     maxlength = maxlength or vec.shape[0]
     return [vec[i : i+maxlength : chunks] for i in range(chunks)]
 
@@ -573,3 +574,39 @@ class ConcatZeroChannelsToDataloader:
             shape[1] = self.resulting_channels - shape[1]
             inputs = torch.cat((inputs, torch.zeros(shape)), dim=1)
             yield inputs, targets
+
+def map_to_base_np(number:int, base):
+    """
+    Convert an integer into a list of digits of that integer in a given base.
+
+    Args:
+        number (int): The integer to convert.
+        base (int): The base to convert the integer to.
+
+    Returns:
+        numpy.ndarray: An array of digits representing the input integer in the given base.
+    """
+    if number == 0: return 0
+    # Convert the input numbers to their digit representation in the given base
+    digits = np.array([number])
+    base_digits = (digits // base**(np.arange(int(np.log(number) / np.log(base)) + 1)[::-1])) % base
+
+    return base_digits
+
+def map_to_base(number:int, base):
+    """
+    Convert an integer into a list of digits of that integer in a given base.
+
+    Args:
+        number (int): The integer to convert.
+        base (int): The base to convert the integer to.
+
+    Returns:
+        numpy.ndarray: An array of digits representing the input integer in the given base.
+    """
+    if number == 0: return torch.tensor([0])
+    # Convert the input numbers to their digit representation in the given base
+    digits = torch.tensor([number])
+    base_digits = (digits // base**(torch.arange(int(math.log(number) / math.log(base)), -1, -1))) % base
+
+    return base_digits

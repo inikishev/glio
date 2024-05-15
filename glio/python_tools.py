@@ -725,3 +725,18 @@ def rename_dict_key_contains(d:dict, key:Any, new_key:Any) -> dict:
     return d
 
 class ImpossibleException(Exception): pass
+
+
+def __cat(iterable, value):
+    for seq in iterable:
+        yield [value] + seq
+
+def __unsqueeze(iterable):
+    for i in iterable: yield [i]
+
+def icartesian(iterables):
+    if len(iterables) == 1:
+        yield from __unsqueeze(iterables[0])
+    for seq in iterables:
+        for val in seq:
+            yield from __cat(iterable=icartesian(iterables[1:]), value=val)
