@@ -128,17 +128,21 @@ def convt(
 
 
 def linear(
-    in_features: int,
+    in_features: Optional[int],
     out_features: int,
     bias: bool = True,
     batch_norm: bool = False,
     dropout: Optional[float] = None,
     act: Optional[torch.nn.Module] = None,
     flatten: bool = False,
+    lazy=False,
 ):
     """Линейный блок с пакетной нормализацией и исключением"""
     # Список модулей со 3D свёрточным модулем
-    modules:list[torch.nn.Module]  = [torch.nn.Linear(in_features, out_features, bias)]
+    if lazy: modules:list[torch.nn.Module]  = [torch.nn.LazyLinear(out_features, bias)]
+    else: 
+        if in_features is None: raise ValueError("in_features must be set")
+        modules:list[torch.nn.Module]  = [torch.nn.Linear(in_features, out_features, bias)]
 
     if flatten: modules.insert(0, torch.nn.Flatten())
 

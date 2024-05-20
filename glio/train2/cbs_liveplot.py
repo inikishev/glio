@@ -99,8 +99,9 @@ class LivePlot2(CBMethod):
     def _plot(self, learner: Learner):
         for k in self.keys:
             if k.replace("\\","") in learner.logger:
-                if "path" in k: self.lfig.update(k, learner.logger.toarray(k.replace("\\","")))
-                else: self.lfig.update(k, learner.logger(k))
+                if k in learner.logger.get_keys_num(): self.lfig.update(k, learner.logger(k))
+                elif "path" in k: self.lfig.update(k, learner.logger.toarray(k.replace("\\","")))
+                else: self.lfig.update(k, learner.logger.last(k))
         self.lfig.draw()
 
     def after_train_batch(self, learner: Learner):
@@ -142,6 +143,8 @@ class PlotSummary(CBMethod):
                 fig.add().plot(*learner.logger(k), label=k, linewidth=1).style_chart(xlabel="batch", ylabel=k, title=learner.logger.stats_str(k))
             elif 'path' in k:
                 fig.add().path10d(learner.logger.toarray(k), label=k).style_chart(title=k)
+            else:
+                fig.add().imshow(learner.logger.last(k), label=k).style_img(title=k)
 
         if self.show: fig.show(figsize=self.figsize, nrow=self.nrow, ncol=self.ncol)
         else: fig.create(figsize=self.figsize, nrow=self.nrow, ncol=self.ncol)

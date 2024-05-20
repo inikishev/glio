@@ -89,11 +89,16 @@ def _register_summary_hooks(hooks:list, name:str, path:str, module:torch.nn.Modu
             )
         )
 
-def summary(model: torch.nn.Module, input: Sequence | torch.Tensor, device:Any = CUDA_IF_AVAILABLE, orig_input = False):#pylint:disable=W0622
+def summary(model: torch.nn.Module, input: Sequence | torch.Tensor, device:Any = CUDA_IF_AVAILABLE, orig_input = False, send_dummy=False):#pylint:disable=W0622
     "Print a summary table of `module`."
     model.eval()
     model = model.to(device)
     with torch.no_grad():
+        if send_dummy: 
+            if not orig_input:
+                if isinstance(input, torch.Tensor): model(input.to(device))
+                else: model(torch.randn(input, device = device))
+            else: model(to_device(input, device))
         print(f"{'path':<45}{'module':<45}{'input size':<25}{'output size':<25}{'params':<10}{'buffers':<10}")
 
         hooks = []
@@ -563,7 +568,7 @@ def stepchunk(vec:torch.Tensor|np.ndarray, chunks:int, maxlength:Optional[int]=N
     return [vec[i : i+maxlength : chunks] for i in range(chunks)]
 
 class ConcatZeroChannelsToDataloader:
-    """Useful when model accepts a bit channels than needed"""
+    """Wraps dataloader and adds zero channels to the end, useful when model accepts more channels than images have"""
     def __init__(self, dataloader, resulting_channels):
         self.dataloader = dataloader
         self.resulting_channels=resulting_channels
@@ -610,3 +615,19 @@ def map_to_base(number:int, base):
     base_digits = (digits // base**(torch.arange(int(math.log(number) / math.log(base)), -1, -1))) % base
 
     return base_digits
+
+
+def sliding_inference_around_3d(input:torch.Tensor, inferer, size, step, around, nlabels):
+    """Input must be a 4D C* or 5D BC* tensor"""
+    if input.ndim == 4: input = input.unsqueeze(0)
+    results = torch.zeros((input.shape[0], nlabels, *input.shape[2:]), device=input.device,)
+    counts = torch.zeros_like(results)
+    for x in range(around, input.shape[2]-around, 1):
+        for y in range(0, input.shape[3], step):
+            for z in range(0, input.shape[4], step):
+                preds = inferer(input[:, :, x-1:x+around+1, y:y+size[0], z:z+size[1]])
+                results[:, :, x, y:y+size[0], z:z+size[1]] += preds
+                counts[:, :, x, y:y+size[0], z:z+size[1]] += 1
+    
+    results /= counts
+    return results

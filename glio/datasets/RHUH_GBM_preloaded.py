@@ -5,9 +5,16 @@ import joblib
 from glio.torch_tools import one_hot_mask
 from glio.python_tools import SliceContainer, reduce_dim
 
-PATH = r"E:\dataset\BRaTS2024-GoAT"
-BRATS2024_HIST96_TRAIN = rf"{PATH}/brats2024 hist96 train.joblib"
-BRATS2024_HIST96_TEST = rf"{PATH}/brats2024 hist96 test.joblib"
+PATH = r"E:\dataset\RHUH-GBM"
+RHUH_HIST140_TRAIN = rf"{PATH}/rhuh hist140 train.joblib"
+RHUH_HIST140_TEST = rf"{PATH}/rhuh hist140 test.joblib"
+RHUH_NOHIST140_TRAIN = rf"{PATH}/rhuh nohist140 train.joblib"
+RHUH_NOHIST140_TEST = rf"{PATH}/rhuh nohist140 test.joblib"
+
+RHUH_HIST140_NOADC_TRAIN = rf"{PATH}/rhuh hist140 noadc train.joblib"
+RHUH_HIST140_NOADC_TEST = rf"{PATH}/rhuh hist140 noadc test.joblib"
+RHUH_NOHIST140_NOADC_TRAIN = rf"{PATH}/rhuh nohist140 noadc train.joblib"
+RHUH_NOHIST140_NOADC_TEST = rf"{PATH}/rhuh nohist140 noadc test.joblib"
 
 def get_ds_2d(path) -> list[tuple[torch.Tensor, torch.Tensor]]:
     ds:list[list[tuple[SliceContainer,SliceContainer]]] = joblib.load(path)
@@ -30,14 +37,8 @@ def get_ds_around(path, around=1) -> list[tuple[list[torch.Tensor],torch.Tensor]
 def loader_around(sample:tuple[list[torch.Tensor],torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
     return torch.cat(sample[0], 0).to(torch.float32), one_hot_mask(sample[1], 4)
 
-def loader_around_fix(sample:tuple[list[torch.Tensor],torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
-    return torch.cat(sample[0], 0).to(torch.float32)[:,:96,:96], one_hot_mask(sample[1], 4)[:,:96,:96]
-
 def loader_around_seq(sample:tuple[list[torch.Tensor],torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
     return torch.stack(reduce_dim(list(zip(*sample[0]))), 0).to(torch.float32), one_hot_mask(sample[1], 4)
-
-def loader_around_seq_fix(sample:tuple[list[torch.Tensor],torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
-    return torch.stack(reduce_dim(list(zip(*sample[0]))), 0).to(torch.float32)[:,:96,:96], one_hot_mask(sample[1], 4)[:,:96,:96]
 
 def randcrop(x: tuple[torch.Tensor, torch.Tensor], size = (96,96)):
     if x[0].shape[1] == size[0] and x[0].shape[2] == size[1]: return x

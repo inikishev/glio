@@ -96,7 +96,7 @@ class Sample(ABC):
 
 class DS(ABC, torch.utils.data.Dataset):
     @abstractmethod
-    def __init__(self, n_threads = 4):
+    def __init__(self, n_threads = 0):
         self.samples: list | list[Sample] = []
         self.n_threads = n_threads
         self.iter_cursor = 0

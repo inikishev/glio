@@ -38,6 +38,10 @@ class Logger:
         if metric not in self.logs: self.logs[metric] = {cur_batch: value}
         else: self.logs[metric][cur_batch] = value
 
+    def set(self, metric, value, cur_batch=0):
+        """Устанавливает значение `value` в метрику `metric`. Полезно, когда нужно сохранять только последнее значение."""
+        self.logs[metric][cur_batch] = value
+
     def keys(self): return self.logs.keys()
     def values(self): return self.logs.values()
     def items(self): return self.logs.items()
@@ -88,7 +92,7 @@ class Logger:
     def last(self, key):
         """Возвращает последнее значение метрики под ключём `key`"""
         return self.tolist(key)[-1]
-    
+
     def stats_str(self, key):
         return f"{key}: last={self.last(key):.3f}, min={self.min(key):.3f}, max={self.max(key):.3f}"
 

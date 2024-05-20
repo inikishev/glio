@@ -40,7 +40,7 @@ class SampleBasic(DSBase.Sample, DSBase.SampleWithTransform):
 
 
 class DSBasic(DSBase.DS, DSBase.DSWithTransform):
-    def __init__(self, n_threads = 8):
+    def __init__(self, n_threads = 0):
         self.samples: list[SampleBasic] = []
         self.n_threads = n_threads
 
@@ -77,7 +77,7 @@ class DSBasic(DSBase.DS, DSBase.DSWithTransform):
         recursive: bool = True,
         extensions: Optional[list[str]] = None,
         path_filt: Optional[Callable] = None,
-        n_threads = 8
+        n_threads = 0
     ) -> "DSBasic":
         ds = DSBasic(n_threads = n_threads)
         ds.add_folder(
@@ -121,7 +121,7 @@ class DSBasic(DSBase.DS, DSBase.DSWithTransform):
         transform: Optional[Callable] = None,
         n_elems=None,
         smart_get0 = True,
-        n_threads = 8,
+        n_threads = 0,
         ) -> "DSBasic":
         ds = DSBasic(n_threads = n_threads)
         ds.add_external_dataset(
@@ -217,7 +217,7 @@ class SampleClassification(DSBase.Sample, DSBase.SampleWithTransform, DSBase.Sam
 
 
 class DSClassification(DSBase.DS, DSBase.DSWithTransform, DSBase.DSWithTargets, DSBase.DSWithTargetEncoder):
-    def __init__(self, n_threads = 8, target_dtype = torch.int64):
+    def __init__(self, n_threads = 0, target_dtype = torch.int64):
         self.samples: list[SampleClassification] = []
         self.n_threads = n_threads
 
@@ -335,7 +335,7 @@ class DSClassification(DSBase.DS, DSBase.DSWithTransform, DSBase.DSWithTargets, 
         recursive: bool = True,
         extensions: Optional[list[str]] = None,
         path_filt: Optional[Callable] = None,
-        n_threads = 8,
+        n_threads = 0,
         target_dtype = torch.int64,
     ) -> "DSClassification":
         ds = DSClassification(n_threads = n_threads, target_dtype=target_dtype)
@@ -422,7 +422,7 @@ class DSClassification(DSBase.DS, DSBase.DSWithTransform, DSBase.DSWithTargets, 
         target_attr: str = "classes",
         n_elems=None,
         smart_get0: bool = True,
-        n_threads = 8,
+        n_threads = 0,
         target_dtype = torch.int64,
         ) -> "DSClassification":
         ds = DSClassification(n_threads=n_threads, target_dtype=target_dtype)
@@ -610,7 +610,7 @@ class SampleToTarget(DSBase.Sample):
         self.transform_target = DSBase.smart_compose(self.transform_target, auto_compose(transform_target))
 
 class DSToTarget(DSBase.DS):
-    def __init__(self, n_threads = 8):
+    def __init__(self, n_threads = 0):
         self.samples: list[SampleToTarget] = []
         self.n_threads = n_threads
 
@@ -699,7 +699,7 @@ class DSToTarget(DSBase.DS):
         recursive: bool = True,
         extensions: Optional[list[str]] = None,
         path_filt: Optional[Callable] = None,
-        n_threads = 8,
+        n_threads = 0,
     ) -> "DSToTarget":
         ds = DSToTarget(n_threads = n_threads)
         ds.add_folder(
@@ -752,7 +752,7 @@ class DSToTarget(DSBase.DS):
         transform_target: Composable = None,
         n_elems=None,
         smart_get0: bool = True,
-        n_threads = 8,
+        n_threads = 0,
         ) -> "DSToTarget":
         ds = DSToTarget(n_threads=n_threads)
         ds.add_external_dataset(
@@ -836,7 +836,7 @@ class SampleRegression(DSBase.Sample, DSBase.SampleWithNumericTarget, DSBase.Sam
 
 
 class DSRegression(DSBase.DS, DSBase.DSWithTargets, DSBase.DSWithTransform):
-    def __init__(self, n_threads = 8, target_dtype = torch.float32):
+    def __init__(self, n_threads = 0, target_dtype = torch.float32):
         self.samples: list[SampleRegression] = []
         self.n_threads = n_threads
         self.target_dtype = target_dtype
@@ -887,7 +887,7 @@ class DSRegression(DSBase.DS, DSBase.DSWithTargets, DSBase.DSWithTransform):
         recursive: bool = True,
         extensions: Optional[list[str]] = None,
         path_filt: Optional[Callable] = None,
-        n_threads = 8,
+        n_threads = 0,
         target_dtype = torch.float32,
     ) -> "DSRegression":
         ds = DSRegression(n_threads=n_threads, target_dtype = target_dtype)
@@ -959,7 +959,7 @@ class DSRegression(DSBase.DS, DSBase.DSWithTargets, DSBase.DSWithTransform):
         target:Callable|float|int|DSBase.AutoTargetFromDataset = DSBase.AutoTargetFromDataset(),
         n_elems=None,
         smart_get0: bool = True,
-        n_threads = 8,
+        n_threads = 0,
         target_dtype = torch.float32,
         ) -> "DSRegression":
         ds = DSRegression(n_threads=n_threads, target_dtype=target_dtype)

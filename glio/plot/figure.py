@@ -1,5 +1,5 @@
 from typing import Optional, Any
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 import math
 
 import matplotlib.pyplot as plt
@@ -145,7 +145,7 @@ class Plot:
     def imshow_batch(self,
         x,
         label=None,
-        maxelems = 16,
+        maxelems:Optional[int] = 16,
         ncol:Optional[int|float] = None,
         nrow:Optional[int|float] = 0.5,
         cmap = None,
@@ -575,7 +575,7 @@ class Figure:
     def get(self, loc:int = -1):
         return self.plots[loc]
 
-    def create(self, nrow:Optional[int|float] = None, ncol:Optional[int|float] = None, figsize = None, layout="tight", **kwargs):
+    def create(self, nrow:Optional[int|float] = None, ncol:Optional[int|float] = None, figsize = None, layout="tight", title=None, **kwargs):
 
         # determine nrow
         nelem = len(self.plots)
@@ -609,10 +609,12 @@ class Figure:
             else:
                 ax.set_axis_off()
                 ax.set_frame_on(False)
+
+        if title is not None: self.fig.suptitle(title)
         return self.fig, self.axes
 
-    def show(self, nrow = None, ncol = None, figsize = None, layout="tight", **kwargs):
-        self.create(nrow, ncol, figsize=figsize, layout=layout)
+    def show(self, nrow = None, ncol = None, figsize = None, layout="tight", title=None, **kwargs):
+        self.create(nrow, ncol, figsize=figsize, layout=layout, title=title)
         plt.show(**kwargs)
         if hasattr(self, 'fig'): self.fig.canvas.draw()
 
@@ -719,17 +721,18 @@ def qpath10d(
     xlabel='x',
     ylabel='y',
     title=None,
+    figsize=None,
     ax=None,
     show=False,
     ):
     fig, plot = _create_fig(ax)
     plot.path10d(data=data, label=label, linecolor=linecolor, marker=marker, cmap=cmap, line_alpha=line_alpha, marker_alpha=marker_alpha, linewidth=linewidth).lim(xlim, ylim).style_chart(xlabel=xlabel, ylabel=ylabel, title=title)
-    if show: fig.show()
-    else: fig.create()
+    if show: fig.show(figsize=figsize)
+    else: fig.create(figsize=figsize)
     return fig
 
 def qimshow(x,
-        label = None,
+        title = None,
         cmap = None,
         vmin=None,
         vmax=None,
@@ -738,18 +741,19 @@ def qimshow(x,
         allow_alpha=False,
         xlabel='x',
         ylabel='y',
-        title=None,
+        figsize=None,
         ax=None,
         show=False,
         **kwargs,):
     fig, plot = _create_fig(ax)
-    plot.imshow(x=x, label=label, cmap=cmap, vmin=vmin, vmax=vmax, alpha=alpha, mode=mode, allow_alpha=allow_alpha, **kwargs).axlabels(xlabel,ylabel).title(title)
-    if show: fig.show()
-    else: fig.create()
+    (plot.imshow(x=x, cmap=cmap, vmin=vmin, vmax=vmax, alpha=alpha, mode=mode, allow_alpha=allow_alpha, **kwargs)
+     .style_img(title=title, xlabel=xlabel, ylabel=ylabel))
+    if show: fig.show(figsize=figsize)
+    else: fig.create(figsize=figsize)
     return fig
 
 def qimshow_batch(x,
-        label=None,
+        title = None,
         maxelems = 16,
         ncol = None,
         nrow = None,
@@ -765,12 +769,36 @@ def qimshow_batch(x,
         pad_value = 'min',
         xlabel='x',
         ylabel='y',
-        title=None,
+        figsize=None,
         ax=None,
         show=False,
         **kwargs,):
     fig, plot = _create_fig(ax)
-    plot.imshow_batch(x=x, label=label, maxelems=maxelems, ncol=ncol, nrow=nrow, cmap=cmap, vmin=vmin, vmax=vmax, alpha=alpha, mode=mode, allow_alpha=allow_alpha, padding=padding, normalize=normalize, scale_each=scale_each, pad_value=pad_value, **kwargs).axlabels(xlabel,ylabel).title(title)
-    if show: fig.show()
-    else: fig.create()
+    (plot.imshow_batch(x=x, maxelems=maxelems, ncol=ncol, nrow=nrow, cmap=cmap, vmin=vmin, vmax=vmax, alpha=alpha, mode=mode, allow_alpha=allow_alpha, padding=padding, normalize=normalize, scale_each=scale_each, pad_value=pad_value, **kwargs)
+    .style_img(title=title, xlabel=xlabel, ylabel=ylabel))
+    if show: fig.show(figsize=figsize)
+    else: fig.create(figsize=figsize)
+    return fig
+
+
+def qimshow_grid(images,
+                 labels = None,
+                 maxelems = 16,
+                 ncol = None,
+                 nrow = None,
+                 cmap = None,
+                 vmin = None,
+                 vmax = None,
+                 allow_alpha=False,
+                 #normalize=True,
+                 title=None,
+                 figsize=None,
+                show=False,
+                **kwargs,):
+    if not isinstance(labels, Sequence): labels = [labels] * len(images)
+    fig = Figure()
+    for i,img in enumerate(images[:maxelems]):
+        fig.add().imshow(img, cmap=cmap, vmin=vmin, vmax=vmax, allow_alpha=allow_alpha, **kwargs).style_img(title=labels[i])
+    if show: fig.show(nrow=nrow, ncol=ncol, title=title, figsize=figsize)
+    else: fig.create(nrow=nrow, ncol=ncol, title=title, figsize=figsize)
     return fig

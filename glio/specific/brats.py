@@ -7,6 +7,7 @@ from ..train2 import *
 
 color_legend = "\nчерный:нет;\nсиний:отёк;\nзелёный:некротическое ядро,\nкрасный:усиливающая опухоль"
 cmp = ListedColormap(['black','red', 'green', 'blue'])
+
 def plot_preds(learner:Learner, batch, softmax = True, unsqueeze = True, expand_channels = None):
     batch = list(batch)
     if unsqueeze:

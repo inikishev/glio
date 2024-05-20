@@ -9,18 +9,6 @@ from glio.loaders import niireadtensor
 from glio.transforms import norm_to01, z_normalize_channels
 from torchvision.transforms import v2
 
-class BRaTS2024_GoAT:
-    def __init__(self):
-        self.data = pl.read_csv(r"F:\Stuff\Programming\AI\glio_diff\glio\datasets\BRaTS2024-GoAT.csv").with_columns(
-                center=pl.col("center").map_elements(lambda x: [int(float(i)) for i in str(x).split(", ")]),
-                src=pl.lit("center"),)
-
-    def get_cols(self, cols) -> Sequence[dict[str, Any]] :
-        return self.data.select(cols).drop_nulls().to_dicts()
-
-    def col_names(self):
-        return self.data.columns
-
 
 class _SitkT:
     def __init__(self, tfm):
