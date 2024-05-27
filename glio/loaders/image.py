@@ -28,7 +28,7 @@ try:
     INSTALLED_IMAGE_LIBS.append('pyvips sequential')
 except (ModuleNotFoundError, OSError): NOT_INSTALLED_IMAGE_LIBS.append('pyvips')
 
-def read(path, lib= 'auto', libs = INSTALLED_IMAGE_LIBS, warn_errors = False):
+def imread(path, lib= 'auto', libs = INSTALLED_IMAGE_LIBS, warn_errors = False):
     path = path.replace('\\', '/')
 
     PIL_transform = torchvision.transforms.v2.PILToTensor()
@@ -36,7 +36,7 @@ def read(path, lib= 'auto', libs = INSTALLED_IMAGE_LIBS, warn_errors = False):
     if lib == 'auto':
         for i in libs:
             try:
-                return read(path, lib=i, warn_errors=warn_errors)
+                return imread(path, lib=i, warn_errors=warn_errors)
             except Exception as e:
                 if warn_errors: logging.warning(e)
         else: raise ValueError(f'Could not read image at {path} with any of {libs}')
@@ -55,7 +55,7 @@ def read(path, lib= 'auto', libs = INSTALLED_IMAGE_LIBS, warn_errors = False):
         
     elif lib == 'pyvips': image = torch.as_tensor(pyvips.Image.new_from_file(path))# pyright:ignore[reportPossiblyUnboundVariable]
     elif lib == 'pyvips sequential': image = torch.as_tensor(pyvips.Image.new_from_file(path, access='sequential'))# pyright:ignore[reportPossiblyUnboundVariable]
-    else: raise
+    else: raise ValueError(f'Unknown image library {lib}')
     if lib in ('cv2', 'skimage.io', 'pyvips', 'pyvips sequential') and image.dim() == 3: image = torch.permute(image, (2, 0, 1))
     if image.dim() == 2: image = torch.unsqueeze(image, 0) 
 

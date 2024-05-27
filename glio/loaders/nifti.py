@@ -14,9 +14,9 @@ def niiread(path:str) -> np.ndarray:
 def niiread_affine(path:str) -> np.ndarray:
     return nib.load(path).affine # type:ignore
 
-def niiwrite(path, arr:np.ndarray | torch.Tensor, affine:list|np.ndarray):
+def niiwrite(path, arr:np.ndarray | torch.Tensor, affine:list|np.ndarray, dtype=None):
     if isinstance(arr, torch.Tensor): arr = arr.numpy()
-    nib.save((nib.Nifti1Image(arr, affine)), path) # type:ignore
+    nib.save((nib.Nifti1Image(arr, affine, dtype=dtype)), path) # type:ignore
     
     
 def niireadtensor(path:str):

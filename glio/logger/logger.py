@@ -51,9 +51,9 @@ class Logger:
     def toarray(self, key): return np.array(list(self.logs[key].values()), copy = False)
     def tolist(self, key): return list(self.logs[key].values())
     def totensor(self, key):
-        if isinstance(self.last(key), (int,float)): return torch.as_tensor(list(self.logs[key].values()))
+        if isinstance(self.last(key), (int,float,np.ScalarType)): return torch.as_tensor(list(self.logs[key].values()))
         elif isinstance(self.last(key), (list,tuple)): return torch.as_tensor(self.toarray(key))
-        return torch.stack(list(self.logs[key].values()))
+        return torch.from_numpy(np.asanyarray(list(self.logs[key].values())))
 
     def get_keys_num(self):
         """Возвращает список ключей c числовыми значениями"""

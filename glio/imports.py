@@ -19,7 +19,7 @@ import random
 # tools
 from functools import partial
 from contextlib import nullcontext
-from collections import Counter
+from collections import Counter, deque
 from copy import copy, deepcopy
 
 # LIBS

@@ -103,7 +103,7 @@ class Plot:
     def imshow(self,
         x,
         label = None,
-        cmap:Optional[str] = 'gray',
+        cmap:Optional[str | Any] = 'gray',
         vmin=None,
         vmax=None,
         alpha = None,
@@ -575,7 +575,7 @@ class Figure:
     def get(self, loc:int = -1):
         return self.plots[loc]
 
-    def create(self, nrow:Optional[int|float] = None, ncol:Optional[int|float] = None, figsize = None, layout="tight", title=None, **kwargs):
+    def create(self, nrow:Optional[int|float] = None, ncol:Optional[int|float] = None, figsize = None, layout="compressed", title=None, **kwargs):
 
         # determine nrow
         nelem = len(self.plots)
@@ -613,7 +613,7 @@ class Figure:
         if title is not None: self.fig.suptitle(title)
         return self.fig, self.axes
 
-    def show(self, nrow = None, ncol = None, figsize = None, layout="tight", title=None, **kwargs):
+    def show(self, nrow = None, ncol = None, figsize = None, layout="compressed", title=None, **kwargs):
         self.create(nrow, ncol, figsize=figsize, layout=layout, title=title)
         plt.show(**kwargs)
         if hasattr(self, 'fig'): self.fig.canvas.draw()
@@ -622,7 +622,7 @@ class Figure:
         self.plots:list[Plot] = []
 
     def savefig(self, path):
-        if hasattr(self, "fig"): self.fig.savefig(path)
+        if hasattr(self, "fig"): self.fig.savefig(path, bbox_inches='tight', pad_inches=0)
 
     def close(self):
         if hasattr(self, 'fig'): plt.close(self.fig)
@@ -794,11 +794,12 @@ def qimshow_grid(images,
                  title=None,
                  figsize=None,
                 show=False,
+                layout='compressed',
                 **kwargs,):
     if not isinstance(labels, Sequence): labels = [labels] * len(images)
     fig = Figure()
     for i,img in enumerate(images[:maxelems]):
         fig.add().imshow(img, cmap=cmap, vmin=vmin, vmax=vmax, allow_alpha=allow_alpha, **kwargs).style_img(title=labels[i])
-    if show: fig.show(nrow=nrow, ncol=ncol, title=title, figsize=figsize)
-    else: fig.create(nrow=nrow, ncol=ncol, title=title, figsize=figsize)
+    if show: fig.show(nrow=nrow, ncol=ncol, title=title, figsize=figsize, layout=layout)
+    else: fig.create(nrow=nrow, ncol=ncol, title=title, figsize=figsize, layout=layout)
     return fig

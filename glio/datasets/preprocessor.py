@@ -83,6 +83,7 @@ class Preprocessor:
 
 
     def __call__(self, *imgs, seg = None, return_nohist=False) ->tuple | Any:
+        """With `return_nohist = True`, returns `imgs, imgs_hist, seg`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"""
         if self.hist_correction is None: return_nohist = False
 
         # load all images

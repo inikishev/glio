@@ -125,10 +125,11 @@ class PlotSummary(CBMethod):
         train_test = []
         sep = []
         for k in learner.logger.keys():
-            if k.startswith("train "):
-                if k.replace("train ", "") not in train_test: train_test.append(k.replace("train ", ""))
-            elif k.startswith("test "):
-                if k.replace("test ", "") not in train_test: train_test.append(k.replace("test ", ""))
+            if k in learner.logger.get_keys_num():
+                if k.startswith("train "):
+                    if k.replace("train ", "") not in train_test: train_test.append(k.replace("train ", ""))
+                elif k.startswith("test "):
+                    if k.replace("test ", "") not in train_test: train_test.append(k.replace("test ", ""))
             else: sep.append(k)
 
         for k in train_test:

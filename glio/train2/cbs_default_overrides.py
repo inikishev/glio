@@ -14,15 +14,15 @@ class OneBatch_Closure(CBEvent):
             if train:
                 def closure():
                     learner.zero_grad() # type:ignore
-                    learner.preds = learner.model(inputs)
-                    learner.loss = learner.loss_fn(learner.preds, targets) # type:ignore
+                    learner.preds = learner.forward(inputs)
+                    learner.loss = learner.get_loss(learner.preds, targets) # type:ignore
                     learner.backward()
                     return learner.loss
                 learner.optimizer_step(closure) # type:ignore
                 learner.scheduler_step()
             else:
-                learner.preds = learner.model(inputs)
-                learner.loss = learner.loss_fn(learner.preds, targets) # type:ignore
+                learner.preds = learner.forward(inputs)
+                learner.loss = learner.get_loss(learner.preds, targets) # type:ignore
 
 
 class OneBatch_ClosureWithNoBackward(CBEvent):
@@ -34,15 +34,15 @@ class OneBatch_ClosureWithNoBackward(CBEvent):
             if train:
                 def closure():
                     learner.zero_grad() # type:ignore
-                    learner.preds = learner.model(inputs)
-                    learner.loss = learner.loss_fn(learner.preds, targets) # type:ignore
+                    learner.preds = learner.forward(inputs)
+                    learner.loss = learner.get_loss(learner.preds, targets) # type:ignore
                     #learner.backward()
                     return learner.loss
                 learner.optimizer_step(closure) # type:ignore
                 learner.scheduler_step()
             else:
-                learner.preds = learner.model(inputs)
-                learner.loss = learner.loss_fn(learner.preds, targets) # type:ignore
+                learner.preds = learner.forward(inputs)
+                learner.loss = learner.get_loss(learner.preds, targets) # type:ignore
 
 
 class GradientFree(CBMethod):
@@ -91,3 +91,29 @@ class CallTrainAndEvalOnOptimizer(CBEvent):
         if hasattr(learner.optimizer, "train"):
             if train: learner.optimizer.train() # type:ignore
             else: learner.optimizer.eval() # type:ignore
+
+
+class AddLossReturnedByModelToLossInGetLoss(CBMethod):
+    def forward(self, learner: "Learner", inputs: torch.Tensor):
+        learner.preds, learner.loss_returned_by_model = learner.model(inputs)
+        return learner.preds
+
+    def get_loss(self, learner: "Learner", preds:torch.Tensor, targets:torch.Tensor):
+        if learner.loss_returned_by_model is not None: learner.loss = learner.loss_fn(preds, targets) + learner.loss_returned_by_model # type:ignore
+        else: learner.loss = learner.loss_fn(preds, targets) # type:ignore
+        return learner.loss
+
+class AddLossReturnedByModelToLossInBackward(CBMethod):
+    def forward(self, learner: "Learner", inputs: torch.Tensor):
+        learner.preds, learner.loss_returned_by_model = learner.model(inputs)
+        return learner.preds
+
+    def backward(self, learner: "Learner"):
+
+        if learner.loss_returned_by_model is not None:
+            if learner.accelerator is None: (learner.loss + learner.loss_returned_by_model).backward()
+            else: learner.accelerator.backward((learner.loss + learner.loss_returned_by_model))
+        else:
+            if learner.accelerator is None: learner.loss.backward()
+            else: learner.accelerator.backward(learner.loss)
+

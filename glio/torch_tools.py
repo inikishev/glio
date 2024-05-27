@@ -10,7 +10,7 @@ import torch
 import torch.utils.hooks, torch.utils.data
 import numpy as np
 import matplotlib.pyplot as plt
-from .python_tools import type_str, try_copy, EndlessContinuingIterator
+from .python_tools import type_str, try_copy, EndlessContinuingIterator, Compose
 CUDA_IF_AVAILABLE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 def to_device(x, device:Optional[torch.device]):
@@ -94,7 +94,7 @@ def summary(model: torch.nn.Module, input: Sequence | torch.Tensor, device:Any =
     model.eval()
     model = model.to(device)
     with torch.no_grad():
-        if send_dummy: 
+        if send_dummy:
             if not orig_input:
                 if isinstance(input, torch.Tensor): model(input.to(device))
                 else: model(torch.randn(input, device = device))
@@ -502,6 +502,10 @@ def unonehot(mask: torch.Tensor, batch = False) -> torch.Tensor:
     return torch.argmax(mask, dim=0)
 
 
+def preds_batch_to_onehot(preds:torch.Tensor):
+    return one_hot_mask(preds.argmax(1), preds.shape[1]).swapaxes(0,1)
+
+
 def angle(a, b, dim=-1):
     """https://github.com/pytorch/pytorch/issues/59194"""
     a_norm = a.norm(dim=dim, keepdim=True)
@@ -573,12 +577,22 @@ class ConcatZeroChannelsToDataloader:
         self.dataloader = dataloader
         self.resulting_channels=resulting_channels
     def __len__(self): return len(self.dataloader)
-    def __iter__(self): 
+    def __iter__(self):
         for inputs, targets in self.dataloader:
             shape = list(inputs.shape)
             shape[1] = self.resulting_channels - shape[1]
             inputs = torch.cat((inputs, torch.zeros(shape)), dim=1)
             yield inputs, targets
+
+class BatchInputTransforms:
+    """Wraps dataloader and applies transforms to batch inputs. So don't use stuff like randflip."""
+    def __init__(self, dataloader, transforms):
+        self.dataloader = dataloader
+        self.transforms = Compose(transforms)
+    def __len__(self): return len(self.dataloader)
+    def __iter__(self):
+        for inputs, targets in self.dataloader:
+            yield self.transforms(inputs), targets
 
 def map_to_base_np(number:int, base):
     """
@@ -628,6 +642,6 @@ def sliding_inference_around_3d(input:torch.Tensor, inferer, size, step, around,
                 preds = inferer(input[:, :, x-1:x+around+1, y:y+size[0], z:z+size[1]])
                 results[:, :, x, y:y+size[0], z:z+size[1]] += preds
                 counts[:, :, x, y:y+size[0], z:z+size[1]] += 1
-    
+
     results /= counts
     return results

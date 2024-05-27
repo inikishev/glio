@@ -15,6 +15,8 @@ from ..torch_tools import CUDA_IF_AVAILABLE, to_device, copy_state_dict
 from ..python_tools import SupportsIter, try_copy, type_str, get__name__
 
 from .cbs_default import (
+    Default_Forward,
+    Default_GetLoss,
     Default_Backward,
     Default_OptimizerStep,
     Default_ZeroGrad,
@@ -31,6 +33,8 @@ if TYPE_CHECKING:
     from accelerate import Accelerator
 
 DEFAULT_CBS = (
+    Default_Forward(),
+    Default_GetLoss(),
     Default_Backward(),
     Default_OptimizerStep(),
     Default_ZeroGrad(),
@@ -101,8 +105,15 @@ class Learner(EventModel):
         self.test_on_interrupt: bool = True
         self.num_epochs: int = 10
         self.epochs_iterator: Iterable = range(10)
+        self.loss_returned_by_model: torch.Tensor | Any = None
 
     def attach_metric(self, metric: Callable, name: str, train = True, test = True): ...
+
+    def forward(self, inputs:torch.Tensor):
+        return self.event("forward", inputs=inputs)[0]
+
+    def get_loss(self, preds:torch.Tensor, targets: torch.Tensor):
+        return self.event("get_loss", preds=preds, targets=targets)[0]
 
     def backward(self):
         self.event("backward")
@@ -123,6 +134,7 @@ class Learner(EventModel):
 
         # получаем предсказания
         self.event("before_batch")
+        self.event("before_any_batch")
         if train: self.event("before_train_batch")
         else: self.event("before_test_batch")
         results = self.event("one_batch", self.inputs, self.targets, train=train)[-1] # type:ignore
@@ -137,6 +149,7 @@ class Learner(EventModel):
         if train: self.event("after_train_batch")
         else: self.event("after_test_batch")
         self.event("after_batch")
+        self.event("after_any_batch")
         if self.status == "train": self.total_batch += 1
 
     def inference(self, batch, to_cpu = True):
@@ -167,6 +180,7 @@ class Learner(EventModel):
         extra:Optional[Callback | Iterable[Callback]] = None,
         without:Optional[str | Iterable[str]] = None
     ):
+        if self.accelerator is None: self.model = self.model.to(self.device)
         self.event(
             "fit",
             num_epochs=num_epochs,

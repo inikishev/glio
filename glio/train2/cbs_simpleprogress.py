@@ -1,5 +1,7 @@
 from collections.abc import Sequence
 import math
+from collections import deque
+import numpy as np
 from ..design.EventModel import CBMethod
 from .Learner import Learner
 from ..progress_bar import PBar
@@ -47,3 +49,39 @@ class SimpleProgressBar(CBMethod):
         self._write(learner)
     def after_fit(self, learner: Learner):
         self._write(learner)
+
+class PrintLoss(CBMethod):
+    def after_batch(self, learner: Learner):
+        print(f'{learner.status} loss = {float(learner.loss.detach().cpu()):.4f}', end='     \r')
+
+class PrintMetrics(CBMethod):
+    order = 90
+    def __init__(self, metrics:Sequence[str]=("train loss", "test loss", "train accuracy", "test accuracy")):
+        super().__init__()
+        self.metrics = metrics
+
+    def after_train_batch(self, learner: Learner):
+        metrics = [metric for metric in self.metrics if metric in learner.logger and len(learner.logger[metric]) > 0]
+        text=''
+        for metric in metrics:
+            text += f"{metric}: last = {learner.logger.last(metric):.3f}, min = {learner.logger.min(metric):.3f}, max = {learner.logger.max(metric):.3f};   "
+        print(text, end='\r')
+
+
+
+class PrintInverseDLoss(CBMethod):
+    def __init__(self, length = 1.):
+        super().__init__()
+        self.length = length
+        self.inv_losses = None
+        self.invdloss = 0.0
+    def after_train_batch(self, learner: Learner):
+        if isinstance(self.length, float): self.length = int(self.length * len(learner.dl_train)) # type:ignore
+        if self.inv_losses is None: self.inv_losses = np.zeros(self.length)
+        loss = float(learner.loss.detach().cpu())
+        self.inv_losses[:-1] = self.inv_losses[1:]
+        if loss > 0: self.inv_losses[-1] =  1 / loss
+        else: self.inv_losses[-1] = 1e10
+        new_invdloss = np.mean(self.inv_losses)
+        print(f'loss = {loss:.4f}; inverted loss change = {float(self.invdloss - new_invdloss) * 100}%', end='     \r')
+        self.invdloss = new_invdloss

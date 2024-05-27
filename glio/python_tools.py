@@ -479,7 +479,7 @@ def call_if_callable(x:Callable | Any) -> Callable | Any:
 class Compose:
     """Композиция функций в обратном порядке"""
     def __init__(self, *transforms):
-        self.transforms = transforms
+        self.transforms = flatten(transforms)
 
     def __call__(self, x):
         for t in self.transforms:
@@ -487,15 +487,17 @@ class Compose:
         return x
 
     def __add__(self, other: "Compose | Callable | SupportsIter"):
-        if isinstance(other, Compose):
-            return Compose(*self.transforms, *other.transforms)
-        elif callable(other):
             return Compose(*self.transforms, other)
-        else:
-            return Compose(*self.transforms, *other)
 
     def __str__(self):
         return f"Compose({', '.join(str(t) for t in self.transforms)})"
+
+    def __iter__(self):
+        return iter(self.transforms)
+    
+    def __getitem__(self, i): return self.transforms[i]
+    def __setitem__(self, i, v): self.transforms[i] = v
+    def __delitem__(self, i): del self.transforms[i]
 
 def auto_compose(func: Optional[Callable | Sequence[Callable]]):
     if isinstance(func, Sequence): return Compose(*func)
@@ -706,7 +708,7 @@ def rename_dict_key_(d:dict, key:Any, new_key:Any) -> None:
     d[new_key] = d.pop(key)
 
 def rename_dict_keys_(d:dict, keys:dict[Any,Any], allow_missing=False) -> None:
-    for k,v in keys.items(): 
+    for k,v in keys.items():
         if k not in d:
             if allow_missing: continue
             else: raise KeyError(f'key {k} not found in dict')

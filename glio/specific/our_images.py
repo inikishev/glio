@@ -71,7 +71,7 @@ class PredictFromOurImages(CBCond):
 
 def get_checkpoint_preds_on_our(cpath, model, imgpath, around = 1, hist=True):
     """Tests a checkpoint on our images"""
-    input = preprocess_from_folder(imgpath, hist=hist)
+    input = preprocess_inputs_from_folder(imgpath, hist=hist)
 
     learner = Learner.from_checkpoint(cpath, model=model, cbs=())
     preds = sliding_inference_around_3d(input.unsqueeze(0), learner.inference, (96,96), 16, around, 4)
@@ -80,7 +80,7 @@ def get_checkpoint_preds_on_our(cpath, model, imgpath, around = 1, hist=True):
 
 def get_checkpoint_preds_on_our_color(cpath, model, imgpath, around = 1, hist=True, ch=0):
     """Tests a checkpoint on our images"""
-    input = preprocess_from_folder(imgpath, hist=hist)
+    input = preprocess_inputs_from_folder(imgpath, hist=hist)
 
     learner = Learner.from_checkpoint(cpath, model=model, cbs=())
     preds = sliding_inference_around_3d(input.unsqueeze(0), learner.inference, (96,96), 16, around, 4)

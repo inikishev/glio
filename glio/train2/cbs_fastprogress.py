@@ -14,6 +14,7 @@ class FastProgressBar(CBMethod):
         fit=True,
         plot_max=4096,
         smooth=None,
+        maxv=None,
     ):
         super().__init__()
         self.plot = plot
@@ -25,6 +26,7 @@ class FastProgressBar(CBMethod):
         self.fit = fit
         if isinstance(smooth, int): smooth = [smooth for _ in range(len(metrics))]
         self.smooth = smooth
+        self.maxv= maxv
 
     def before_fit(self, learner:Learner):
         self.mbar = learner.epochs_iterator = master_bar(learner.epochs_iterator)
@@ -35,7 +37,7 @@ class FastProgressBar(CBMethod):
     def _plot(self, learner: Learner):
         if self.plot:
             metrics = [learner.logger[metric] for metric in self.metrics if metric in learner.logger]
-            metrics = [i for i in metrics if len(i) > 0]
+            metrics = [(i if self.maxv is None else dict(zip(i.keys(), np.clip(list(i.values()), a_min=None, a_max=1)))) for i in metrics if len(i) > 0]
             if len(metrics) > 0:
                 reduction = [max(int(len(metric) / self.plot_max), 1) for metric in metrics]
                 metrics = [([list(m.keys())[::reduction[i]], list(m.values())[::reduction[i]]] if reduction[i]>1 else [list(m.keys()), list(m.values())]) for i, m in enumerate(metrics)]

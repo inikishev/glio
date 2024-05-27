@@ -9,6 +9,19 @@ from ..torch_tools import to_device, smart_detach, smart_detach_cpu
 if TYPE_CHECKING:
     from .Learner import Learner
 
+
+class Default_Forward(CBEvent):
+    event = "forward"
+    def __call__(self, learner: "Learner", inputs: torch.Tensor):
+        learner.preds = learner.model(inputs)
+        return learner.preds
+
+class Default_GetLoss(CBEvent):
+    event = "get_loss"
+    def __call__(self, learner: "Learner", preds:torch.Tensor, targets: torch.Tensor):
+        learner.loss = learner.loss_fn(preds, targets) # type:ignore
+        return learner.loss
+
 class Default_Backward(CBEvent):
     event = "backward"
     def __call__(self, learner: "Learner"):
@@ -41,6 +54,7 @@ class Default_SetMode(CBEvent):
         #     if train: learner.optimizer.train() # type:ignore
         #     else: learner.optimizer.eval() # type:ignore
 
+
 class Default_OneBatch(CBEvent):
     event = "one_batch"
     def __call__(self, learner: "Learner", inputs: torch.Tensor, targets: torch.Tensor, train=True):
@@ -49,10 +63,10 @@ class Default_OneBatch(CBEvent):
         with nullcontext() if train else torch.no_grad():
 
             # get predictions
-            learner.preds = learner.model(inputs)
+            learner.forward(inputs)
 
             # calculate loss
-            learner.loss = learner.loss_fn(learner.preds, targets) # pylint: disable=E1102 # type:ignore
+            learner.get_loss(learner.preds, targets)
 
             # backprop
             if train:
@@ -68,8 +82,8 @@ class Default_Inference(CBEvent):
         learner.set_mode(False)
         batch = to_device(batch, learner.device)
         with torch.no_grad():
-            if to_cpu: return smart_detach_cpu(learner.model(batch))
-            return smart_detach(learner.model(batch))
+            if to_cpu: return smart_detach_cpu(learner.forward(batch))
+            return smart_detach(learner.forward(batch))
 
 class Default_OneEpoch(CBEvent):
     event = "one_epoch"

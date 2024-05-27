@@ -2,7 +2,7 @@ import os
 os.environ['FOR_DISABLE_CONSOLE_CTRL_HANDLER'] = '1'
 
 from .jupyter_tools import show_slices, show_slices_arr, clean_mem
-from .torch_tools import lr_finder, summary, count_parameters, seeded_rng, seed0_kwargs
+from .torch_tools import lr_finder, summary, count_parameters, seeded_rng, seed0_kwargs, BatchInputTransforms
 from .python_tools import (
     type_str,
     get__name__,
@@ -16,6 +16,7 @@ from .python_tools import (
     reduce_dim,
     flatten,
     perf_counter_context,
+    find_file_containing,
 )
 from . import plt_colormaps as _plt_colormaps
 
