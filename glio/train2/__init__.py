@@ -29,6 +29,7 @@ from .cbs_default_overrides import (
     AddLossReturnedByModelToLossInBackward,
 )
 from .cbs_performance import PerformanceTweaks
+from .cbs_optim import *
 
 
 from ..design.EventModel import Callback, CBCond, CBContext, CBEvent, CBMethod

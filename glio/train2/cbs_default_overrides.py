@@ -95,7 +95,11 @@ class CallTrainAndEvalOnOptimizer(CBEvent):
 
 class AddLossReturnedByModelToLossInGetLoss(CBMethod):
     def forward(self, learner: "Learner", inputs: torch.Tensor):
-        learner.preds, learner.loss_returned_by_model = learner.model(inputs)
+        returned_value = learner.model(inputs)
+        if isinstance(returned_value, torch.Tensor):
+            learner.preds = returned_value
+            learner.loss_returned_by_model = None
+        else: learner.preds, learner.loss_returned_by_model = returned_value
         return learner.preds
 
     def get_loss(self, learner: "Learner", preds:torch.Tensor, targets:torch.Tensor):
@@ -105,7 +109,11 @@ class AddLossReturnedByModelToLossInGetLoss(CBMethod):
 
 class AddLossReturnedByModelToLossInBackward(CBMethod):
     def forward(self, learner: "Learner", inputs: torch.Tensor):
-        learner.preds, learner.loss_returned_by_model = learner.model(inputs)
+        returned_value = learner.model(inputs)
+        if isinstance(returned_value, torch.Tensor):
+            learner.preds = returned_value
+            learner.loss_returned_by_model = None
+        else: learner.preds, learner.loss_returned_by_model = returned_value
         return learner.preds
 
     def backward(self, learner: "Learner"):

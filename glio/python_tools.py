@@ -326,12 +326,12 @@ def get_all_files(path:str, recursive:bool = True, extensions: Optional[str | Se
 
     return all_files
 
-def find_file_containing(folder, contains:str, recursive = True, error = True):
+def find_file_containing(folder, contains:str, recursive = True, error = True) -> str:
     for f in get_all_files(folder, recursive=recursive):
         if contains in f:
             return f
     if error: raise FileNotFoundError(f"File containing {contains} not found in {folder}")
-    return None
+    return None # type:ignore
 
 def get0(x:HasGetItem) -> Any: return x[0]
 def get1(x:HasGetItem) -> Any: return x[1]

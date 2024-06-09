@@ -5,25 +5,30 @@ import joblib
 from glio.torch_tools import one_hot_mask
 from glio.python_tools import SliceContainer, reduce_dim, Compose
 
-RHUH_PATH = r"E:\dataset\RHUH-GBM"
-RHUH_HIST140_TRAIN = rf"{RHUH_PATH}/rhuh hist140 train.joblib"
-RHUH_HIST140_TEST = rf"{RHUH_PATH}/rhuh hist140 test.joblib"
-RHUH_NOHIST140_TRAIN = rf"{RHUH_PATH}/rhuh nohist140 train.joblib"
-RHUH_NOHIST140_TEST = rf"{RHUH_PATH}/rhuh nohist140 test.joblib"
+# RHUH_PATH = r"E:\dataset\RHUH-GBM"
+# RHUH_HIST140_TRAIN = rf"{RHUH_PATH}/rhuh hist140 train.joblib"
+# RHUH_HIST140_TEST = rf"{RHUH_PATH}/rhuh hist140 test.joblib"
+# RHUH_NOHIST140_TRAIN = rf"{RHUH_PATH}/rhuh nohist140 train.joblib"
+# RHUH_NOHIST140_TEST = rf"{RHUH_PATH}/rhuh nohist140 test.joblib"
 
-RHUH_HIST140_NOADC_TRAIN = rf"{RHUH_PATH}/rhuh hist140 noadc train.joblib"
-RHUH_HIST140_NOADC_TEST = rf"{RHUH_PATH}/rhuh hist140 noadc test.joblib"
-RHUH_NOHIST140_NOADC_TRAIN = rf"{RHUH_PATH}/rhuh nohist140 noadc train.joblib"
-RHUH_NOHIST140_NOADC_TEST = rf"{RHUH_PATH}/rhuh nohist140 noadc test.joblib"
+# RHUH_HIST140_NOADC_TRAIN = rf"{RHUH_PATH}/rhuh hist140 noadc train.joblib"
+# RHUH_HIST140_NOADC_TEST = rf"{RHUH_PATH}/rhuh hist140 noadc test.joblib"
+# RHUH_NOHIST140_NOADC_TRAIN = rf"{RHUH_PATH}/rhuh nohist140 noadc train.joblib"
+# RHUH_NOHIST140_NOADC_TEST = rf"{RHUH_PATH}/rhuh nohist140 noadc test.joblib"
 
-BRATS_PATH = r"E:\dataset\BRaTS2024-GoAT"
-BRATS2024_NOHIST96_TRAIN = rf"{BRATS_PATH}/brats2024 nohist96 train.joblib"
-BRATS2024_NOHIST96_TEST = rf"{BRATS_PATH}/brats2024 nohist96 test.joblib"
-BRATS2024SMALL_HIST96_TRAIN = rf"{BRATS_PATH}/brats2024-small hist train.joblib"
-BRATS2024SMALL_HIST96_TEST = rf"{BRATS_PATH}/brats2024-small hist test.joblib"
-BRATS2024SMALL_NOHIST96_TRAIN = rf"{BRATS_PATH}/brats2024-small nohist train.joblib"
-BRATS2024SMALL_NOHIST96_TEST = rf"{BRATS_PATH}/brats2024-small nohist test.joblib"
+# BRATS_PATH = r"E:\dataset\BRaTS2024-GoAT"
+# BRATS2024_NOHIST96_TRAIN = rf"{BRATS_PATH}/brats2024 nohist96 train.joblib"
+# BRATS2024_NOHIST96_TEST = rf"{BRATS_PATH}/brats2024 nohist96 test.joblib"
+# BRATS2024SMALL_HIST96_TRAIN = rf"{BRATS_PATH}/brats2024-small hist train.joblib"
+# BRATS2024SMALL_HIST96_TEST = rf"{BRATS_PATH}/brats2024-small hist test.joblib"
+# BRATS2024SMALL_NOHIST96_TRAIN = rf"{BRATS_PATH}/brats2024-small nohist train.joblib"
+# BRATS2024SMALL_NOHIST96_TEST = rf"{BRATS_PATH}/brats2024-small nohist test.joblib"
 
+RHUH_TRAIN = r"E:\dataset\RHUH-GBM\rhuh full v2 train.joblib"
+RHUH_TEST = r"E:\dataset\RHUH-GBM\rhuh full v2 test.joblib"
+
+BRATS_TRAIN = r"E:\dataset\BRaTS2024-GoAT\brats2024-96 v2 train.joblib"
+BRATS_TEST = r"E:\dataset\BRaTS2024-GoAT\brats2024-96 v2 test.joblib"
 
 def get_ds_2d(path) -> list[tuple[torch.Tensor, torch.Tensor]]:
     ds:list[list[tuple[SliceContainer,SliceContainer]]] = joblib.load(path)
@@ -58,6 +63,7 @@ def loader_around_seq_fix(sample:tuple[list[torch.Tensor],torch.Tensor]) -> tupl
 
 def randcrop(x: tuple[torch.Tensor, torch.Tensor], size = (96,96)):
     if x[0].shape[1] == size[0] and x[0].shape[2] == size[1]: return x
+    #print(x[0].shape)
     startx = random.randint(0, (x[0].shape[1] - size[0]) - 1)
     starty = random.randint(0, (x[0].shape[2] - size[1]) - 1)
     return x[0][:, startx:startx+size[0], starty:starty+size[1]], x[1][:, startx:startx+size[0], starty:starty+size[1]]

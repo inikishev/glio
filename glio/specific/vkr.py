@@ -1,29 +1,33 @@
 from functools import partial
-import os
+import os, shutil
 import torch
+import numpy as np
 from matplotlib.colors import ListedColormap
 from monai.inferers import SlidingWindowInferer # type:ignore
+from PIL import Image
 from ..plot import *
 from ..train2 import *
 from ..python_tools import find_file_containing
 from ..torch_tools import one_hot_mask
 from ..transforms import norm_to01
+from ..transforms.intensity import norm
 from ..datasets.preprocessor import Preprocessor, _load_if_needed
 from ..progress_bar import PBar
 from ..loaders import niiread_affine
+from ..loaders.nifti import niiwrite
 
 brgb = ListedColormap(['black','red', 'green', 'blue'])
 brgb_legend = "\nчерный:нет;\nсиний:отёк;\nзелёный:некротическое ядро,\nкрасный:усиливающая опухоль"
 
-def visualize_3_segm_classes(inputs:torch.Tensor, segm:torch.Tensor):
+def visualize_3_segm_classes(inputs:torch.Tensor, segm:torch.Tensor, magn:float=2):
     """
     inputs: HW
     segm: 4HW or HW, where 0th class is background"""
-    preview = torch.stack([inputs,inputs,inputs], dim=0)
+    preview = torch.stack([norm(inputs),norm(inputs),norm(inputs)], dim=0) # type:ignore
     if segm.ndim == 3: segm = segm.argmax(0)
-    preview[0] = torch.where(segm == 1, preview[0]*2, preview[0]).clip(0,1)
-    preview[1] = torch.where(segm == 2, preview[1]*2, preview[2]).clip(0,1)
-    preview[2] = torch.where(segm == 3, preview[2]*2, preview[2]).clip(0,1)
+    preview[0] = torch.where(segm == 1, preview[0]*magn, preview[0]).clip(0,1)
+    preview[1] = torch.where(segm == 2, preview[1]*magn, preview[2]).clip(0,1)
+    preview[2] = torch.where(segm == 3, preview[2]*magn, preview[2]).clip(0,1)
     return preview
 
 def visualize_predictions(inferer, sample:tuple[torch.Tensor, torch.Tensor], around=1, expand_channels = None, save=False, path=None):
@@ -104,6 +108,19 @@ def get_rhuh_preprocessed_by_idx(index, hist=False):
     if hist: return torch.cat((images, seg.unsqueeze(0)))
     else: return torch.cat((images_nohist, seg.unsqueeze(0)))
 
+def get_rhuh_preprocessed_by_idxes(idx1, idx2, hist=False):
+    """Returns a 6*h*w tensor: `t1c, t1n, t2f, t2w, adc, seg`"""
+    path = rf'E:\dataset\RHUH-GBM\RHUH-GBM_nii_v1/RHUH-{str(idx1).rjust(4, "0")}/{idx2}'
+    t1c = find_file_containing(path, 't1ce.')
+    t1n = find_file_containing(path, 't1.')
+    t2f = find_file_containing(path, 'flair.')
+    t2w = find_file_containing(path, 't2.')
+    adc = find_file_containing(path, 'adc.')
+    seg = find_file_containing(path, 'seg')
+    p = Preprocessor()
+    images_nohist, images, seg = p(t1c, t1n, t2f, t2w, adc, seg=seg, return_nohist=True)
+    if hist: return torch.cat((images, seg.unsqueeze(0)))
+    else: return torch.cat((images_nohist, seg.unsqueeze(0)))
 
 def _our_rotate(x):
     return x.flip(2)
@@ -144,7 +161,7 @@ def find_flair(folder):
     if x is None: x = find_file_containing(folder, 'flair', error=True)
     return x
 
-def get_our_preprocessed_by_idxs(idx1, idx2, hist=False, return_affine = False):
+def get_our_preprocessed_by_idxs_from_wdir(idx1, idx2, hist=False, return_affine = False) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
     """Returns a 4*h*w tensor: `t1c, t1n, t2f, t2w`"""
     path = rf'D:\vkr\new\nii\{idx1}\{idx2}\preop\wdir'
     path = path + '\\' + fr'{os.listdir(path)[0]}\nii_final'
@@ -156,8 +173,8 @@ def get_our_preprocessed_by_idxs(idx1, idx2, hist=False, return_affine = False):
     images_nohist, images = p(t1c, t1n, t2f, t2w, return_nohist=True)
     if return_affine:
         affine = niiread_affine(t1c) # type:ignore
-        if hist: return images, affine
-        return images_nohist, affine
+        if hist: return images, affine # type:ignore
+        return images_nohist, affine # type:ignore
     else:
         if hist: return images
         return images_nohist
@@ -217,9 +234,9 @@ def sliding_inference_around_3d_monai(inputs:torch.Tensor, inferer, size, overla
     return results.swapaxes(0,1) # type:ignore
 
 
-def get_checkpoint_preds_on_our_around(cpath, model, idx1, idx2, hist=False, expand=None, inferer_fn = sliding_inference_around_3d_batched, **inferer_kwargs):
+def get_checkpoint_preds_on_our_around(cpath, model, idx1, idx2, hist=False, expand=None, inferer_fn = sliding_inference_around_3d_monai, **inferer_kwargs):
     """Tests a checkpoint on our images, around=1"""
-    input = get_our_preprocessed_by_idxs(idx1, idx2, hist=hist)
+    input = get_our_preprocessed_by_idxs_from_wdir(idx1, idx2, hist=hist)
 
     learner = Learner.from_checkpoint(cpath, model=model, cbs=())
     preds = inferer_fn(input, learner.inference, size=(96,96), expand=expand, **inferer_kwargs)
@@ -227,49 +244,37 @@ def get_checkpoint_preds_on_our_around(cpath, model, idx1, idx2, hist=False, exp
     return preds
 
 brats_references = [
-    (partial(get_brats_preprocessed_by_idx, 0), 43),
-    (partial(get_brats_preprocessed_by_idx, 1), 102),
-    (partial(get_brats_preprocessed_by_idx, 3), 39),
-    (partial(get_brats_preprocessed_by_idx, 5), 79),
+    (partial(get_brats_preprocessed_by_idx, 1), 61),
+    (partial(get_brats_preprocessed_by_idx, 2), 46),
+    (partial(get_brats_preprocessed_by_idx, 3), 86),
+    (partial(get_brats_preprocessed_by_idx, 8), 62),
+
 ]
 
 rhuh_references = [
-    (partial(get_rhuh_preprocessed_by_idx, 2), 99),
-    (partial(get_rhuh_preprocessed_by_idx, 7), 23),
-    (partial(get_rhuh_preprocessed_by_idx, 8), 33),
-    (partial(get_rhuh_preprocessed_by_idx, 16), 62),
-]
+    (partial(get_rhuh_preprocessed_by_idx, 1), 69),
+    (partial(get_rhuh_preprocessed_by_idx, 2), 74),
+    (partial(get_rhuh_preprocessed_by_idx, 13), 101),
+    (partial(get_rhuh_preprocessed_by_idx, 104), 79),
+    (partial(get_rhuh_preprocessed_by_idx, 85), 85),
+    (partial(get_rhuh_preprocessed_by_idx, 80), 79),
+    (partial(get_rhuh_preprocessed_by_idx, 58), 78),
+    (partial(get_rhuh_preprocessed_by_idx, 35), 88),
 
+]
 our_references = [
-    # (partial(get_our_preprocessed_by_idx, 0), 91),
-    # (partial(get_our_preprocessed_by_idx, 1), 106),
-    # (partial(get_our_preprocessed_by_idx, 2), 90),
-    # (partial(get_our_preprocessed_by_idx, 3), 96),
-    # (partial(get_our_preprocessed_by_idx, 4), 53),
-    # (partial(get_our_preprocessed_by_idx, 5), 54),
-    # (partial(get_our_preprocessed_by_idx, 6), 99),
-    # (partial(get_our_preprocessed_by_idx, 8), 39),
-    # (partial(get_our_preprocessed_by_idx, 9), 36),
-    # (partial(get_our_preprocessed_by_idx, 10), 97),
-    # (partial(get_our_preprocessed_by_idx, 11), 105),
-    #(partial(get_our_preprocessed_by_idxs, 0), 91),
-    (partial(get_our_preprocessed_by_idxs, 1, 1), 106),
-    (partial(get_our_preprocessed_by_idxs, 2, 0), 90),
-    (partial(get_our_preprocessed_by_idxs, 2, 1), 96),
-    (partial(get_our_preprocessed_by_idxs, 3, 0), 53),
-    (partial(get_our_preprocessed_by_idxs, 3, 1), 54),
-    #(partial(get_our_preprocessed_by_idxs, 4, 0), 99),
-    (partial(get_our_preprocessed_by_idxs, 5, 0), 39),
-    (partial(get_our_preprocessed_by_idxs, 5, 1), 36),
-    #(partial(get_our_preprocessed_by_idxs, 6, 0), 97),
-    (partial(get_our_preprocessed_by_idxs, 6, 1), 105),
+    (partial(get_our_preprocessed_by_idxs_from_wdir, 1, 1), 111),
+    (partial(get_our_preprocessed_by_idxs_from_wdir, 2, 0), 78),
+    (partial(get_our_preprocessed_by_idxs_from_wdir, 2, 1), 94),
+    (partial(get_our_preprocessed_by_idxs_from_wdir, 3, 0), 74),
+    (partial(get_our_preprocessed_by_idxs_from_wdir, 5, 1), 81),
 ]
 
 
 def visualize_brats_reference(idx, inferer, around=1, hist=False, overlap=0.75, expand=None, save=False, folder=None, prefix=''):
     """0,1,2,3. Model must accept sequential around inputs, i.e. 3 T1c, 3 T1n, etc..."""
     slice_idx = brats_references[idx][1]
-    image3d = brats_references[idx][0](hist=hist) # C D H W
+    image3d = brats_references[idx][0](hist=hist).permute(0,3,2,1) # C D H W
     inputs3d, seg3d = image3d[:-1], image3d[-1]
     if around: inputs_around = inputs3d[:, slice_idx-around:slice_idx+around+1].flatten(0,1)
     else: inputs_around = inputs3d[:, slice_idx]
@@ -285,7 +290,7 @@ def visualize_brats_reference_all(inferer, around=1, hist=False, overlap=0.75, e
 def visualize_rhuh_reference(idx, inferer, around=1, hist=False, overlap=0.75, expand=None, pass_adc = False, save=False, folder=None, prefix=''):
     """0,1,2,3. Model must accept sequential around inputs, i.e. 3 T1c, 3 T1n, etc..."""
     slice_idx = rhuh_references[idx][1]
-    image3d = rhuh_references[idx][0](hist=hist) # C D H W
+    image3d = rhuh_references[idx][0](hist=hist).permute(0,3,2,1) # C D H W
     inputs3d, seg3d = image3d[:-1], image3d[-1]
     if not pass_adc: inputs3d = inputs3d[:4]
     if around: inputs_around = inputs3d[:, slice_idx-around:slice_idx+around+1].flatten(0,1)
@@ -297,12 +302,12 @@ def visualize_rhuh_reference(idx, inferer, around=1, hist=False, overlap=0.75, e
     visualize_predictions(partial(sliding.__call__, network=inferer), (inputs_around, one_hot_mask(seg, 4)), save=save, path=f'{folder}/{prefix}RHUH {idx}.jpg')
 
 def visualize_rhuh_reference_all(inferer, around=1, hist=False, overlap=0.75, expand=None, pass_adc = False, save=False, folder=None, prefix=''):
-    for i in range(4): visualize_rhuh_reference(i, inferer=inferer, around=around, hist=hist, overlap=overlap, expand=expand, pass_adc=pass_adc, save=save, folder=folder,prefix=prefix)
+    for i in range(8): visualize_rhuh_reference(i, inferer=inferer, around=around, hist=hist, overlap=overlap, expand=expand, pass_adc=pass_adc, save=save, folder=folder,prefix=prefix)
 
 def visualize_our_reference(idx, inferer, around=1, hist=False, overlap=0.75, expand=None, save=False, folder=None, prefix=''):
     """0-10. Model must accept sequential around inputs, i.e. 3 T1c, 3 T1n, etc..."""
     slice_idx = our_references[idx][1]
-    inputs3d = our_references[idx][0](hist=hist) # C D H W
+    inputs3d = our_references[idx][0](hist=hist).permute(0,3,2,1) # C D H W
     if around: inputs_around = inputs3d[:, slice_idx-around:slice_idx+around+1].flatten(0,1)
     else: inputs_around = inputs3d[:, slice_idx]
 
@@ -312,7 +317,7 @@ def visualize_our_reference(idx, inferer, around=1, hist=False, overlap=0.75, ex
 
 
 def visualize_our_reference_all(inferer, around=1, hist=False, overlap=0.75, expand=None, save=False, folder=None, prefix=''):
-    for i in range(11): visualize_our_reference(i, inferer=inferer, around=around, hist=hist, overlap=overlap, expand=expand, save=save, folder=folder, prefix=prefix)
+    for i in range(5): visualize_our_reference(i, inferer=inferer, around=around, hist=hist, overlap=overlap, expand=expand, save=save, folder=folder, prefix=prefix)
 
 
 def visualize_all_references(inferer, around=1, hist=False, overlap=0.75, expand=None, pass_adc=False, save=False, folder=None,prefix=''):
@@ -323,7 +328,7 @@ def visualize_all_references(inferer, around=1, hist=False, overlap=0.75, expand
 
 class SaveReferenceVisualizationsAfterEachEpoch(CBMethod):
     order = 1
-    def __init__(self, folder, brats=(0,), rhuh=(2,), our=(0,8,9)):
+    def __init__(self, folder, brats=(0,2), rhuh=(0,2,6), our=(0,1,2,4)):
         self.folder=folder
         if not os.path.exists(folder): os.mkdir(folder)
         self.brats = brats
@@ -336,7 +341,7 @@ class SaveReferenceVisualizationsAfterEachEpoch(CBMethod):
         prefix=f'{learner.total_epoch} {float(learner.logger.last("test loss")):.4f} '
         for i in self.brats: visualize_brats_reference(i, learner.inference, save=True, folder=folder, prefix=prefix)
         for i in self.rhuh: visualize_rhuh_reference(i, learner.inference, save=True, folder=folder, prefix=prefix)
-        #for i in self.our: visualize_our_reference(i, learner.inference, save=True, folder=folder, prefix=prefix)
+        for i in self.our: visualize_our_reference(i, learner.inference, save=True, folder=folder, prefix=prefix)
 
 
 def show_slices_with_seg_from_files(*imgs, seg):
@@ -369,7 +374,7 @@ def show_rhuh_slices_with_seg(idx, seg=None):
 def show_our_slices_with_seg(idx1, idx2, seg, rotate=True):
     from ..jupyter_tools import show_slices
     seg = _load_if_needed(seg)
-    image = get_our_preprocessed_by_idxs(idx1, idx2)
+    image:torch.Tensor = get_our_preprocessed_by_idxs_from_wdir(idx1, idx2) # type:ignore
 
     if rotate:
         image = image.permute(0,3,2,1)
@@ -382,19 +387,148 @@ def show_our_slices_with_seg(idx1, idx2, seg, rotate=True):
     preview[2] = torch.where(seg == 3, preview[2]*2, preview[2]).clip(0,1)
     #cat = torch.cat((image, torch.stack([seg for _ in range(5)])), 3)
     show_slices(torch.cat((preview, preview2), 4).permute(1,2,3,4,0)) # type:ignore
-    
-    
-def sliding_inference_around_tta(inputs:torch.Tensor, inferer, size, expand = None, inferer_fn = sliding_inference_around_3d_batched, **inferer_kwargs):
+
+
+def sliding_inference_around_tta_separate(inputs:torch.Tensor, inferer, size, expand = None, ttaid=(0,1,2,3,4,5,6,7), inferer_fn = sliding_inference_around_3d_monai, **inferer_kwargs):
     """Input must be a 4D C* or 5D BC* tensor"""
-    result1 = inferer_fn(inputs, inferer, size=size,  expand=expand, **inferer_kwargs)
-    result2 = inferer_fn(inputs.flip(-1), inferer, size=size,  expand=expand, **inferer_kwargs).flip(-1)
-    result3 = inferer_fn(inputs.flip(-2), inferer, size=size,  expand=expand, **inferer_kwargs).flip(-2)
-    result4 = inferer_fn(inputs.flip((-1, -2)), inferer, size=size,  expand=expand, **inferer_kwargs).flip((-1, -2))
+    results = []
+    if 0 in ttaid: results.append(inferer_fn(inputs, inferer, size=size,  expand=expand, **inferer_kwargs))
+    if 1 in ttaid: results.append(inferer_fn(inputs.flip(-1), inferer, size=size,  expand=expand, **inferer_kwargs).flip(-1))
+    if 2 in ttaid: results.append(inferer_fn(inputs.flip(-2), inferer, size=size,  expand=expand, **inferer_kwargs).flip(-2))
+    if 3 in ttaid: results.append(inferer_fn(inputs.flip((-1, -2)), inferer, size=size,  expand=expand, **inferer_kwargs).flip((-1, -2)))
 
     inputs2 = inputs.swapaxes(-1, -2)
-    result5 = inferer_fn(inputs2, inferer, size=size, expand=expand, **inferer_kwargs).swapaxes(-1, -2)
-    result6 = inferer_fn(inputs2.flip(-1), inferer, size=size, expand=expand, **inferer_kwargs).flip(-1).swapaxes(-1, -2)
-    result7 = inferer_fn(inputs2.flip(-2), inferer, size=size,  expand=expand, **inferer_kwargs).flip(-2).swapaxes(-1, -2)
-    result8 = inferer_fn(inputs2.flip((-1, -2)), inferer, size=size,  expand=expand, **inferer_kwargs).flip((-1, -2)).swapaxes(-1, -2)
+    if 4 in ttaid: results.append(inferer_fn(inputs2, inferer, size=size, expand=expand, **inferer_kwargs).swapaxes(-1, -2))
+    if 5 in ttaid: results.append(inferer_fn(inputs2.flip(-1), inferer, size=size, expand=expand, **inferer_kwargs).flip(-1).swapaxes(-1, -2))
+    if 6 in ttaid: results.append(inferer_fn(inputs2.flip(-2), inferer, size=size,  expand=expand, **inferer_kwargs).flip(-2).swapaxes(-1, -2))
+    if 7 in ttaid: results.append(inferer_fn(inputs2.flip((-1, -2)), inferer, size=size,  expand=expand, **inferer_kwargs).flip((-1, -2)).swapaxes(-1, -2))
 
-    return torch.stack((result1, result2, result3, result4, result5, result6, result7, result8)).sum(0)
+    return results
+
+
+def sliding_inference_around_tta(inputs:torch.Tensor, inferer, size, expand = None, ttaid=(0,1,2,3,4,5,6,7), inferer_fn = sliding_inference_around_3d_monai, **inferer_kwargs):
+    """Input must be a 4D C* or 5D BC* tensor"""
+    results = sliding_inference_around_tta_separate(inputs=inputs, inferer=inferer, size=size, expand=expand, ttaid=ttaid, inferer_fn=inferer_fn, **inferer_kwargs)
+    return torch.stack((results)).sum(0)
+
+
+def save_seg_visualization(t1c:str | torch.Tensor, t1n:str | torch.Tensor,  t2f:str | torch.Tensor, t2w:str | torch.Tensor, seg:str | torch.Tensor, outfolder:str, permute=None, real_seg=None):
+    """Сохраняет разрезы с наложенной на них сегментацией."""
+    t1c = _load_if_needed(t1c)
+    t1n = _load_if_needed(t1n)
+    t2f = _load_if_needed(t2f)
+    t2w = _load_if_needed(t2w)
+    seg = _load_if_needed(seg)
+    if seg.ndim == 4: seg = seg.argmax(0)
+    if real_seg is not None:
+        real_seg = _load_if_needed(real_seg)
+        if real_seg.ndim == 4: real_seg = real_seg.argmax(0)
+
+    # визуализация
+    inputs = norm(torch.stack((t1c, t1n, t2f, t2w)))
+    preview_seg = norm(torch.stack((inputs,inputs,inputs))) # 34XYZ / CMXYZ # type:ignore
+
+    if permute is not None:
+        preview_seg = preview_seg.permute(0, 1, *[i+2 for i in permute]) # type:ignore
+        seg = seg.permute(permute)
+        if real_seg is not None:  real_seg = real_seg.permute(permute)
+
+    preview_no_seg = preview_seg.clone() # type:ignore
+    if real_seg is not None: preview_real_seg = preview_seg.clone() # type:ignore
+    preview_seg[0] = torch.where(seg == 1, preview_seg[0]*2, preview_seg[0]).clip(0,1)
+    preview_seg[1] = torch.where(seg == 2, preview_seg[1]*2, preview_seg[2]).clip(0,1)
+    preview_seg[2] = torch.where(seg == 3, preview_seg[2]*2, preview_seg[2]).clip(0,1)
+
+    if real_seg is not None:
+        preview_real_seg[0] = torch.where(real_seg == 1, preview_real_seg[0]*2, preview_real_seg[0]).clip(0,1)# type:ignore
+        preview_real_seg[1] = torch.where(real_seg == 2, preview_real_seg[1]*2, preview_real_seg[2]).clip(0,1) # type:ignore
+        preview_real_seg[2] = torch.where(real_seg == 3, preview_real_seg[2]*2, preview_real_seg[2]).clip(0,1)# type:ignore
+
+    if real_seg is None: preview_cat = torch.cat((preview_seg, preview_no_seg), 4).permute(1,2,3,4,0).numpy() # 4XYZC / MXYZC # type:ignore
+    else: preview_cat = torch.cat((preview_seg, preview_real_seg, preview_no_seg), 4).permute(1,2,3,4,0).numpy() # 4XYZC / MXYZC # type:ignore
+    # save slice visualizeations
+
+    for mod, modname in zip(preview_cat, ('T1CE', 'T1', 'FLAIR', 'T2')):
+        for i, sl in enumerate(mod):
+            im = Image.fromarray(norm(sl, 0, 255).astype(np.uint8)) # type:ignore
+            im.save(f'{outfolder}/{i}_{modname}.png')
+
+
+def отчёт(preprocessed:torch.Tensor, seg:str | torch.Tensor, outfolder:str, real_seg = None, permute = None):
+    """Принимает предобработанные сканы и сегментацию, сохраняет отчёт с папками `обработанные сканы`, `сегментация`, `срезы`.
+
+    preprocessed: 4xyz тензор с 'T1CE', 'T1', 'FLAIR', 'T2'.
+
+    seg: 4xyz или xyz тензор или путь к файлу.
+
+    """
+    seg = _load_if_needed(seg)
+    if seg.ndim == 4: seg = seg.argmax(0)
+    if real_seg is not None:
+        real_seg = _load_if_needed(real_seg)
+        if real_seg.ndim == 4: real_seg = real_seg.argmax(0)
+
+    # # входные данные
+    os.mkdir(f'{outfolder}/обработанные сканы')
+    for ch, fname in zip(preprocessed, ('T1CE', 'T1', 'FLAIR', 'T2')):
+        niiwrite( f'{outfolder}/обработанные сканы/{fname}.nii.gz', ch, None)# type:ignore
+
+    # # пресказание
+    niiwrite(f'{outfolder}/сегментация.nii.gz', seg.numpy().astype(np.float32), None, dtype=np.float32)# type:ignore
+
+    # срезы
+    os.mkdir(f'{outfolder}/визуализация срезов сегментации')
+    save_seg_visualization(*preprocessed, seg=seg, outfolder=f'{outfolder}/визуализация срезов сегментации', permute=permute, real_seg=real_seg)
+
+
+def отчёт_наших_wdir(inferer, idx1, idx2, outfolder, ttaid = (0,1,2,3,4,5,6,7), inferer_fn=sliding_inference_around_3d_monai, **inferer_kwargs):
+    """Принимает idx1 и idx2, сохраняет `исходные сканы`, `обработанные сканы`, `сегментация`, `срезы`."""
+    os.makedirs(outfolder, exist_ok=True)
+    # загрузка
+    input = get_our_preprocessed_by_idxs_from_wdir(idx1, idx2)
+    # предсказание
+    #preds = sliding_inference_around_tta(input, learner.inference, size = (96,96), expand=None, inferer_fn=sliding_inference_around_3d_batched, nlabels=4, step=48) # type:ignore
+    preds = sliding_inference_around_tta(input, inferer, size = (96,96), expand=None, ttaid=ttaid, inferer_fn=inferer_fn, **inferer_kwargs) # type:ignore
+
+    # исходные сканы
+    path = rf'D:\vkr\new\nii\{idx1}\{idx2}'
+    t1c = find_t1ce(path)
+    t1n = find_t1(path)
+    t2f = find_flair(path)
+    t2w = find_t2(path)
+    os.mkdir(f'{outfolder}/исходные сканы')
+    for i in t1c, t1n, t2f, t2w:
+        fname = i.replace('\\', '/').split('/')[-1] # type:ignore
+        shutil.copyfile(i, f'{outfolder}/исходные сканы/{fname}')# type:ignore
+
+    # предобработанные сканы
+    отчёт(input, seg=preds, outfolder=outfolder, permute=(2,1,0)) # type:ignore
+
+
+def отчёт_rhuh(inferer, idx1, idx2, outfolder, ttaid = (0,1,2,3,4,5,6,7), inferer_fn=sliding_inference_around_3d_monai, **inferer_kwargs):
+    """Принимает idx1 и idx2, сохраняет `исходные сканы`, `обработанные сканы`, `сегментация`, `срезы`."""
+    os.makedirs(outfolder, exist_ok=True)
+    # загрузка
+    arr = get_rhuh_preprocessed_by_idxes(idx1, idx2)
+    input, true_seg = arr[:4], arr[-1]
+    # предсказание
+    #preds = sliding_inference_around_tta(input, learner.inference, size = (96,96), expand=None, inferer_fn=sliding_inference_around_3d_batched, nlabels=4, step=48) # type:ignore
+    preds = sliding_inference_around_tta(input, inferer, size = (96,96), expand=None, ttaid=ttaid, inferer_fn=inferer_fn, **inferer_kwargs) # type:ignore
+
+    # исходные сканы
+    path = rf'E:\dataset\RHUH-GBM\RHUH-GBM_nii_v1/RHUH-{str(idx1).rjust(4, "0")}/{idx2}'
+    t1c = find_file_containing(path, 't1ce.')
+    t1n = find_file_containing(path, 't1.')
+    t2f = find_file_containing(path, 'flair.')
+    t2w = find_file_containing(path, 't2.')
+    #adc = find_file_containing(path, 'adc.')
+    seg = find_file_containing(path, 'seg')
+    os.mkdir(f'{outfolder}/исходные сканы')
+    for i in t1c, t1n, t2f, t2w:
+        fname = i.replace('\\', '/').split('/')[-1] # type:ignore
+        shutil.copyfile(i, f'{outfolder}/исходные сканы/{fname}')# type:ignore
+
+    shutil.copyfile(seg, f'{outfolder}/реальная сегментация.nii.gz') # type:ignore
+
+    # предобработанные сканы
+    отчёт(input, seg=preds, outfolder=outfolder, real_seg=true_seg, permute = (2,1,0)) # type:ignore

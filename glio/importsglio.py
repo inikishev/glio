@@ -13,6 +13,8 @@ from .python_tools import (
     get1,
     getlast,
     printargs as printa,
+    identity,
+    identity_if_none,
     reduce_dim,
     flatten,
     perf_counter_context,

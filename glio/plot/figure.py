@@ -141,6 +141,8 @@ class Plot:
             return ax
         self.tfms.append(imshow)
         return self
+    
+    #def mask(x)
 
     def imshow_batch(self,
         x,
@@ -148,7 +150,7 @@ class Plot:
         maxelems:Optional[int] = 16,
         ncol:Optional[int|float] = None,
         nrow:Optional[int|float] = 0.5,
-        cmap = None,
+        cmap = 'gray',
         vmin=None,
         vmax=None,
         alpha = None,
@@ -733,7 +735,7 @@ def qpath10d(
 
 def qimshow(x,
         title = None,
-        cmap = None,
+        cmap = 'gray',
         vmin=None,
         vmax=None,
         alpha = None,
@@ -752,12 +754,13 @@ def qimshow(x,
     else: fig.create(figsize=figsize)
     return fig
 
+
 def qimshow_batch(x,
         title = None,
         maxelems = 16,
         ncol = None,
         nrow = None,
-        cmap = None,
+        cmap = 'gray',
         vmin=None,
         vmax=None,
         alpha = None,
@@ -786,7 +789,7 @@ def qimshow_grid(images,
                  maxelems = 16,
                  ncol = None,
                  nrow = None,
-                 cmap = None,
+                 cmap = 'gray',
                  vmin = None,
                  vmax = None,
                  allow_alpha=False,

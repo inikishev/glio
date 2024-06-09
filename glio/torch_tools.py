@@ -455,7 +455,7 @@ def one_hot_mask(mask: torch.Tensor, num_classes:int) -> torch.Tensor:
         return torch.nn.functional.one_hot(mask.to(torch.int64), num_classes).permute(3, 0, 1, 2).to(torch.float32) # pylint:disable=E1102 #type:ignore
     elif mask.ndim == 2:
         return torch.nn.functional.one_hot(mask.to(torch.int64), num_classes).permute(2, 0, 1).to(torch.float32) # pylint:disable=E1102 #type:ignore
-    else: raise NotImplementedError
+    else: raise NotImplementedError(f'one_hot_mask: mask.ndim = {mask.ndim}')
 
 
 def count_parameters(model):
