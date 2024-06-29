@@ -1,5 +1,6 @@
 """Инструменты для PyTorch"""
 from typing import Optional, Sequence, Any, Callable, Iterable
+import logging
 from contextlib import contextmanager
 import random
 import math
@@ -10,7 +11,7 @@ import torch
 import torch.utils.hooks, torch.utils.data
 import numpy as np
 import matplotlib.pyplot as plt
-from .python_tools import type_str, try_copy, EndlessContinuingIterator, Compose
+from .python_tools import type_str, try_copy, EndlessContinuingIterator, Compose, reduce_dim
 CUDA_IF_AVAILABLE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 def to_device(x, device:Optional[torch.device]):
@@ -84,7 +85,7 @@ def _register_summary_hooks(hooks:list, name:str, path:str, module:torch.nn.Modu
         hooks.append(
             module.register_forward_hook(
                 lambda m, i, o: _summary_hook(
-                    f"{path}/{name}" if len(path) != 0 else name, m, i, o
+                    f"{path}/{name}" if len(path) != 0 else name, m, i, o # type:ignore
                 )
             )
         )
@@ -413,8 +414,9 @@ def area_around(tensor:torch.Tensor, coord, size) -> torch.Tensor:
     """Returns a tensor of `size` size around `coord`"""
     if len(coord) == 3:
         x, y, z = coord
+        x, y, z = int(x), int(y), int(z)
         sx, sy, sz = size
-        sx, sy, sz = int(sx/2), int(sy/2), int(sz/2)
+        sx, sy, sz = int(sx//2), int(sy//2), int(sz//2)
         if tensor.ndim == 3: shape = tensor.size()
         elif tensor.ndim == 4: shape = tensor.shape[1:]
         else: raise NotImplementedError
@@ -429,6 +431,7 @@ def area_around(tensor:torch.Tensor, coord, size) -> torch.Tensor:
         elif tensor.ndim == 4:
             return tensor[:, int(x-sx):int(x+sx), int(y-sy):int(y+sy), int(z-sz):int(z+sz)]
         else: raise NotImplementedError
+
     elif len(coord) == 2:
         x, y = coord
         sx, sy = size
@@ -449,6 +452,7 @@ def area_around(tensor:torch.Tensor, coord, size) -> torch.Tensor:
             return tensor[:,:, int(x-sx):int(x+sx), int(y-sy):int(y+sy)]
         else: raise NotImplementedError
     else: raise NotImplementedError
+
 
 def one_hot_mask(mask: torch.Tensor, num_classes:int) -> torch.Tensor:
     if mask.ndim == 3:
@@ -645,3 +649,104 @@ def sliding_inference_around_3d(input:torch.Tensor, inferer, size, step, around,
 
     results /= counts
     return results
+
+
+class CreateIterator:
+    def __init__(self, iterable:Iterable, length: int):
+        self.iterable = iterable
+        self.length = length
+    def __len__(self): return self.length
+    def __iter__(self): return self.iterable
+class MRISlicer:
+    def __init__(self, tensor:torch.Tensor, seg:torch.Tensor, num_classes:int, around:int = 1, any_prob:float = 0.05, warn_empty = True):
+        if tensor.ndim != 4: raise ValueError(f"`tensor` is {tensor.shape}")
+        if seg.ndim not in (3, 4): raise ValueError(f"`seg` is {seg.shape}")
+        if seg.ndim == 4: seg = seg.argmax(0)
+
+        self.tensor = tensor
+        self.seg = seg
+        self.num_classes = num_classes
+
+        if self.tensor.shape[1:] != self.seg.shape: raise ValueError(f"Shapes don't match: image is {self.tensor.shape}, seg is {self.seg.shape}")
+
+        self.x,self.y,self.z = [],[],[]
+
+        # save top
+        for i, sl in enumerate(to_binary(seg, 0)):
+            if sl.sum() > 0: self.x.append(i)
+
+        # save front
+        for i, sl in enumerate(to_binary(seg.swapaxes(0,1), 0)):
+            if sl.sum() > 0: self.y.append(i)
+
+        # save side
+        for i, sl in enumerate(to_binary(seg.swapaxes(0,2), 0)):
+            if sl.sum() > 0: self.z.append(i)
+
+        if len(self.x) == 0:
+            if warn_empty: logging.warning('Segmentation is empty, setting probability to 0.')
+            self.any_prob = 0
+
+        self.shape = self.tensor.shape
+        self.around = around
+        self.any_prob = any_prob
+
+    def set_settings(self, around:int = 1, any_prob:float = 0.05):
+        self.around = around
+        if len(self.x) > 0: self.any_prob = any_prob
+
+    def __call__(self):
+        # pick a dimension
+        dim = random.choice([0,1,2])
+
+        # get a tensor
+        if dim == 0:
+            tensor = self.tensor
+            seg = self.seg
+            length = self.shape[1]
+        elif dim == 1:
+            tensor = self.tensor.swapaxes(1, 2)
+            seg = self.seg.swapaxes(0,1)
+            length = self.shape[2]
+        else:
+            tensor = self.tensor.swapaxes(1, 3)
+            seg = self.seg.swapaxes(0,2)
+            length = self.shape[3]
+
+        # pick a coord
+        # from segmentation
+        if random.random() > self.any_prob:
+            if dim == 0: coord = random.choice(self.x)
+            elif dim == 1: coord = random.choice(self.y)
+            else: coord = random.choice(self.z)
+
+            # check if coord outside of bounds
+            if coord < self.around: coord = self.around
+            elif coord + self.around >= length: coord = length - self.around - 1
+
+        else:
+            coord = random.randrange(0 + self.around, length - self.around)
+
+        # get slice
+        if self.around == 0: return tensor[:, coord], seg[coord]
+
+        # or get slices around
+        return tensor[:, coord - self.around : coord + self.around + 1].flatten(0,1), seg[coord]
+
+    def yield_all_slices(self):
+        for dim in range(3):
+            for coord in range(self.around, self.shape[dim+1] - self.around):
+                if dim == 0:
+                    yield self.tensor[:, coord], self.seg[coord]
+                elif dim == 1:
+                    yield self.tensor[:, :, coord], self.seg[:, coord]
+                else:
+                    yield self.tensor[:, :, :, coord], self.seg[:, :, coord]
+
+    def _yield_all_seg_slices_iterator(self):
+        for xcoord in self.x: yield self.tensor[:, xcoord], self.seg[xcoord]
+        for ycoord in self.y: yield self.tensor[:, :, ycoord], self.seg[:, ycoord]
+        for zcoord in self.z: yield self.tensor[:, :, :, zcoord], self.seg[:, :, zcoord]
+
+    def iter_all_seg_slices(self):
+        return CreateIterator(self._yield_all_seg_slices_iterator(), len(self.x) + len(self.y) + len(self.z))

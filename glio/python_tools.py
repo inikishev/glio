@@ -267,7 +267,14 @@ def to_callable(obj, *args, **kwargs):
 
 
 def int_at_beginning(s:str) -> int | str:
-    """Возвращает целое число любой длины, если строка с него начинается."""
+    """If a string starts with an integer of any length, returns that integer. Otherwise returns the string.
+
+    >>> int_at_beginning('123abc')
+    123
+
+    >>> int_at_beginning('abc')
+    'abc'
+    """
     i = 1
     num = None
     while True:
@@ -494,7 +501,7 @@ class Compose:
 
     def __iter__(self):
         return iter(self.transforms)
-    
+
     def __getitem__(self, i): return self.transforms[i]
     def __setitem__(self, i, v): self.transforms[i] = v
     def __delitem__(self, i): del self.transforms[i]

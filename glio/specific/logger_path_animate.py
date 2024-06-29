@@ -16,7 +16,7 @@ def logger_path_animate(logger: Logger, out, figsize=(8, 4.5), fps=30, tail=100,
     lfig.add_plot('test accuracy', (1,0), axlabelsize=5)
     lfig.add_path10d('param path L1', (0,1), axlabelsize=5)
     lfig.add_path10d('param path L1 - last 100', (1,1), axlabelsize=5)
-    lfig.draw(update=False, figsize=figsize, layout=None)
+    lfig.draw(update=False, figsize=figsize, layout=None) # type:ignore
     plt.tight_layout()
     r = PBar(range(1, list(logger["train loss"].keys())[-1]), 50, 1)
     #r = PBar(range(1, 10), 50, 1)

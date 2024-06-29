@@ -27,7 +27,7 @@ class SimpleProgressBar(CBMethod):
 
     def before_fit(self, learner:Learner):
         self.bar_epoch.set_obj(learner.epochs_iterator)
-        learner.epochs_iterator = self.bar_epoch
+        learner.epochs_iterator = self.bar_epoch # type:ignore
 
     def before_any_epoch(self, learner:Learner):
         self.bar_batch.set_obj(learner.dl)

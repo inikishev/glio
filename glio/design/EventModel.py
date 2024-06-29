@@ -201,10 +201,14 @@ class Event:
 
 
 class EventModel(ABC):
-    def __init__(self, cbs: Optional[Iterable[Callback]], default_cbs: Optional[Iterable[Callback]] = None):
+    def __init__(self, cbs: Optional[Iterable[Callback]] = None, default_cbs: Optional[Iterable[Callback]] = None):
         # create events
         self.events:dict[str, Event] = {}
         self.default_events:dict[str, Event] = {}
+
+        # set cbs for access
+        self.cbs = []
+        self.default_cbs = []
 
         # add cbs
         if cbs is not None:
@@ -212,10 +216,18 @@ class EventModel(ABC):
         if default_cbs is not None:
             for cb in default_cbs: self.add_default(cb)
 
+
     @final
     def __getattr__(self, attr: str) -> Any:
         if (attr not in self.events) and (attr not in self.default_events): raise AttributeError(f'`{attr}` not found in {self.__class__.__name__} or any of the callbacks')
         return partial(self.event, attr)
+
+    def clear(self):
+        self.events:dict[str, Event] = {}
+        self.default_events:dict[str, Event] = {}
+
+        self.cbs = []
+        self.default_cbs = []
 
     def attach(
         self,
@@ -248,6 +260,7 @@ class EventModel(ABC):
         """Привязка каллбэка `cb` через его метод `attach`."""
         if isinstance(cb, Callback): cb = [cb]
         for i in cb: i.attach(self)
+        self.cbs.extend(cb)
 
         for i in sorted(cb, key=lambda x: x.order if hasattr(x, 'order') else 0):
             if hasattr(i, "enter"): i.enter(self) # type:ignore
@@ -257,13 +270,14 @@ class EventModel(ABC):
         """Привязка каллбэка по умолчанию `cb` через его метод `attach`."""
         if isinstance(cb, Callback): cb = [cb]
         for i in cb: i.attach_default(self)
+        self.default_cbs.extend(cb)
 
         for i in sorted(cb, key=lambda x: x.order if hasattr(x, 'order') else 0):
             if hasattr(i, "enter"): i.enter(self) # type:ignore
 
-    @property
-    def cbs(self):
-        return [j[0] for i in self.events.values() if len(i.cbs) > 0 for j in i.cbs] + [j[0] for i in self.default_events.values() if len(i.cbs) > 0 for j in i.cbs]
+    # @property
+    # def cbs(self):
+    #     return [j[0] for i in self.events.values() if len(i.cbs) > 0 for j in i.cbs] + [j[0] for i in self.default_events.values() if len(i.cbs) > 0 for j in i.cbs]
 
     def event(self, event:str, *args, **kwargs) -> Any:
         if event in self.events:
@@ -275,8 +289,11 @@ class EventModel(ABC):
     def remove(self, cbs: Callback | Callable | Iterable[Callable | Callback]):
         if callable(cbs): cbs = [cbs]
 
-        for i in sorted(cbs, key=lambda x: x.order if hasattr(x, 'order') else 0): # type:ignore
-            if hasattr(i, "exit"): i.exit(self) # type:ignore
+        for cb in sorted(cbs, key=lambda x: x.order if hasattr(x, 'order') else 0): # type:ignore
+            if hasattr(cb, "exit"): cb.exit(self) # type:ignore
+
+            if cb in self.cbs: self.cbs.remove(cb)
+            if cb in self.default_cbs: self.default_cbs.remove(cb)
 
         for event in self.events.copy().values():
             event.remove(cbs)
@@ -290,8 +307,11 @@ class EventModel(ABC):
             removed.extend(event.remove_by_name(names))
             if len(event.cbs) == 0: del self.events[event.event]
 
-        for i in sorted(removed, key=lambda x: x[3]):
-            if hasattr(i, "exit"): i.exit(self) # type:ignore
+        for cb in sorted(removed, key=lambda x: x[3]):
+            if hasattr(cb, "exit"): cb.exit(self) # type:ignore
+
+            if cb in self.cbs: self.cbs.remove(cb)
+            if cb in self.default_cbs: self.default_cbs.remove(cb)
 
         return removed
 

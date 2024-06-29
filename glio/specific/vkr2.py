@@ -49,7 +49,8 @@ def visualize_predictions(inferer, sample:tuple[torch.Tensor, torch.Tensor], aro
     fig.add().imshow_batch(preds_raw, scale_each=True).style_img(f'сырой выход\n{brgb_legend}')
     fig.add().imshow(targets, cmap=brgb).style_img(f'реальная карта\n{brgb_legend}')
     fig.add().imshow(preds, cmap=brgb).style_img(f'предсказанная карта\n{brgb_legend}')
-    fig.add().imshow_batch((preds_raw - targets_raw).abs(), scale_each=True).style_img('сырая ошибка')
+    fig.add().imshow(preds_raw[1:].flip(0)).style_img('сырой выход')
+    #fig.add().imshow_batch((preds_raw - targets_raw).abs(), scale_each=True).style_img('сырая ошибка')
     fig.add().imshow(preds != targets,  cmap='gray').style_img('ошибка')
 
     fig.add().imshow(visualize_3_segm_classes(inputs[0][0], targets)).style_img(f'реальная карта\n{brgb_legend}')
@@ -209,7 +210,7 @@ def sliding_inference_around_3d_monai(inputs:torch.Tensor, inferer, size, overla
     if expand: inputs = torch.cat((inputs, torch.zeros((inputs.shape[0], expand-inputs.shape[1], *inputs.shape[2:]))), 1)
     sliding = SlidingWindowInferer(size, 32, overlap, mode='gaussian', progress=True, device=torch.device('cuda'), sw_device=torch.device('cuda'))
 
-    results = sliding(inputs, inferer).cpu()
+    results = sliding(inputs, inferer).cpu() # type:ignore
     padding = torch.zeros((1, *results.shape[1:],)) # type:ignore
     results = torch.cat((padding, results, padding)) # type:ignore
     return results.swapaxes(0,1) # type:ignore
@@ -344,6 +345,22 @@ class SaveReferenceVisualizationsAfterEachEpoch(CBMethod):
         for i in self.rhuh: visualize_rhuh_reference(i, learner.inference, save=True, folder=folder, prefix=prefix)
         for i in self.our: visualize_our_reference(i, learner.inference, save=True, folder=folder, prefix=prefix)
 
+class SaveReferenceVisualizationsAfterTrain(CBMethod):
+    order = 1
+    def __init__(self, folder, brats=(0,1,2,3), rhuh=(0,1,2,3,4,5,6,7), our=(0,1,2,3,4)):
+        self.folder=folder
+        if not os.path.exists(folder): os.mkdir(folder)
+        self.brats = brats
+        self.rhuh = rhuh
+        self.our = our
+
+    def after_fit(self, learner:Learner):
+        if not os.path.exists(f'{self.folder}/{learner.cp_number}. {learner.name}'): os.mkdir(f'{self.folder}/{learner.cp_number}. {learner.name}')
+        folder = f'{self.folder}/{learner.cp_number}. {learner.name}'
+        prefix=f'{learner.total_epoch} {float(learner.logger.last("test loss")):.4f} '
+        for i in self.brats: visualize_brats_reference(i, learner.inference, save=True, folder=folder, prefix=prefix)
+        for i in self.rhuh: visualize_rhuh_reference(i, learner.inference, save=True, folder=folder, prefix=prefix)
+        for i in self.our: visualize_our_reference(i, learner.inference, save=True, folder=folder, prefix=prefix)
 
 def show_slices_with_seg_from_files(*imgs, seg):
     from ..jupyter_tools import show_slices

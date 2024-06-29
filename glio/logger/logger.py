@@ -207,3 +207,30 @@ class Logger:
         for m in metrics:
             l[m] = {batch: metric for batch, metric in self[m].items() if start <= batch <= stop}
         return l
+
+    def info(self):
+        text = ""
+        for key in sorted(self.keys()):
+            last = self.last(key)
+            text += f"{key}:\n"
+            text += f"    count: {len(self[key])}\n"
+            text += f"    type: {type(last)}\n"
+            if isinstance(last, (torch.Tensor, np.ndarray)) and last.ndim > 0:
+                text += f"    last dtype: {last.dtype}\n"
+                text += f"    last ndim: {last.ndim}\n"
+                text += f"    last shape: {last.shape}\n"
+                text += f"    last min: {last.min()}\n"
+                text += f"    last max: {last.max()}\n"
+                text += f"    last mean: {last.mean()}\n"
+                text += f"    last var: {last.var()}\n"
+                text += f"    last std: {last.std()}\n"
+                text += f"    elements: {last.numel() if isinstance(last, torch.Tensor) else last.size}\n"
+            elif isinstance(last, (int, float)) or (isinstance(last, (torch.Tensor, np.ndarray)) and last.ndim == 0):
+                values = self.toarray(key)
+                text += f"    last value: {float(last)}\n"
+                text += f"    lowest: {values.min()}\n"
+                text += f"    highest: {values.max()}\n"
+                text += f"    mean: {values.mean()}\n"
+            text += "\n"
+
+        return text

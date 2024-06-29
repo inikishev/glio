@@ -7,6 +7,8 @@ import torch, torch.nn.functional as F
 from .Learner import Learner
 from ..design.EventModel import Callback, EventModel
 from ..python_tools import type_str, get__name__
+from ..metrics.dice import dice
+from ..metrics.iou import iou
 
 class CBMetric(Callback, ABC):
     metric:str
@@ -88,30 +90,6 @@ class Metric_PredsTargetsFn(CBMetric):
         if isinstance(metric, torch.Tensor): return float(metric.detach().cpu())
         return metric
 class Metric_Accuracy(CBMetric):
-    """Точность"""
-    def __init__(self, argmax_preds = True, argmax_targets = False, ignore_bg = False, step=1, name='accuracy'):
-        super().__init__(train = True, test = True, aggregate_func = np.mean)
-        self.argmax_preds, self.argmax_targets = argmax_preds, argmax_targets
-        self.ignore_bg = ignore_bg
-        self.train_cond = None if step<=1 else lambda _, i: i%step==0
-        self.metric = name
-
-    def __call__(self, learner: Learner):
-        if self.argmax_preds:
-            if self.ignore_bg: preds = learner.preds[:, 1:].argmax(1)
-            else: preds = learner.preds.argmax(1)
-        else:
-            if self.ignore_bg: raise NotImplementedError("Невозможно игнорировать фон если предсказания не в формате one-hot.")
-            preds = learner.preds
-        if self.argmax_targets:
-            if self.ignore_bg: targets = learner.targets[:, 1:].argmax(1)
-            else: targets = learner.targets.argmax(1)
-        else:
-            if self.ignore_bg: raise NotImplementedError("Невозможно игнорировать фон если класс не в формате one-hot.")
-            targets = learner.targets
-        return float(preds.eq(targets).detach().float().mean().cpu())
-
-class Metric_MSE(CBMetric):
     """Точность"""
     def __init__(self, argmax_preds = True, argmax_targets = False, ignore_bg = False, step=1, name='accuracy'):
         super().__init__(train = True, test = True, aggregate_func = np.mean)

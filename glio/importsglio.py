@@ -28,6 +28,6 @@ from .progress_bar import PBar
 from .data import DSClassification, DSRegression, DSBasic, DSToTarget
 
 from . import nn as gnn
-from .nn import conv, convt, linear, seq, block
+from .nn import ConvBlock, ConvTransposeBlock
 from .helpers import cnn_output_size, tcnn_output_size
 from .transforms import norm_to01, norm_to11, z_normalize, z_normalize_channels, fUnNormalize, norm_torange

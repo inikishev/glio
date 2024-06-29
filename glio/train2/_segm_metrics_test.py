@@ -1,6 +1,6 @@
 
 import statistics
-from stuff.found.segmentation_metrics import SegmentationMetrics
+from stuff.found.torch.metrics.segmentation_metrics import SegmentationMetrics
 from .Learner import Learner
 from .cbs_metrics import CBMetric
 

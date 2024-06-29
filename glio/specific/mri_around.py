@@ -52,7 +52,7 @@ def visualize_predictions(inferer, sample:tuple[torch.Tensor, torch.Tensor], aro
         preds_raw:torch.Tensor = inferer(expanded)[0]
     preds:torch.Tensor = preds_raw.argmax(0)
 
-    inputs[0] = torch.stack([norm_to01(i) for i in inputs[0]])
+    inputs[0] = torch.stack([norm_to01(i) for i in inputs[0]]) # type:ignore
     fig.add().imshow_batch(inputs[0, 1::around], scale_each=True).style_img('вход:\nT1c, T1, FLAIR, T2')
     fig.add().imshow_batch(preds_raw, scale_each=True).style_img(f'сырой выход\n{brgb_legend}')
     fig.add().imshow(targets, cmap=brgb).style_img(f'реальная карта\n{brgb_legend}')

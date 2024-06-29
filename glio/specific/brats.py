@@ -18,7 +18,7 @@ def plot_preds(learner:Learner, batch, softmax = True, unsqueeze = True, expand_
         shape[1] = expand_channels - shape[1]
         batch[0] = torch.cat((batch[0], torch.zeros(shape)), dim=1)
     preds = learner.inference(batch[0].to(learner.device))
-    batch[0][0] = torch.stack([norm_to01(i) for i in batch[0][0]])
+    batch[0][0] = torch.stack([norm_to01(i) for i in batch[0][0]]) # type:ignore
     batch[0][:,3,0,0] = 1
     preds[0][3,0,0] = 1
     v = Visualizer()

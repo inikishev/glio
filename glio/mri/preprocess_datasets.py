@@ -32,7 +32,9 @@ def preprocess_images_tensor(t1:str, t1ce:str, flair:str, t2w:str):
     return torch.from_numpy(images).to(torch.float32)
 
 def preprocess_rhuh(path:str):
-    """Returns: ndarray[t1, t1ce, flair, t2w], ndarray[seg]"""
+    """Crops black background and applies znormalization to each modality.
+
+    Returns: ndarray[t1, t1ce, flair, t2w], ndarray[seg]."""
     t1 = find_file_containing(path, "t1.")
     t1ce = find_file_containing(path, "t1ce.")
     flair = find_file_containing(path, "flair.")
@@ -42,12 +44,17 @@ def preprocess_rhuh(path:str):
     return preprocess_images_seg(t1, t1ce, flair, t2w, seg)
 
 def preprocess_rhuh_tensor(path:str):
+    """Crops black background and applies znormalization to each modality.
+
+    Returns: torch.Tensor[t1, t1ce, flair, t2w], torch.Tensor[seg]."""
     import torch
     images, seg = preprocess_rhuh(path)
     return torch.from_numpy(images).to(torch.float32), torch.from_numpy(seg.astype(np.int32))
 
 def preprocess_brats2024goat(path:str):
-    """Returns: ndarray[t1, t1ce, flair, t2w], ndarray[seg]"""
+    """Crops black background and applies znormalization to each modality.
+
+    Returns: ndarray[t1, t1ce, flair, t2w], ndarray[seg]."""
     t1 = find_file_containing(path, "t1n.")
     t1ce = find_file_containing(path, "t1c.")
     flair = find_file_containing(path, "t2f.")
@@ -56,6 +63,29 @@ def preprocess_brats2024goat(path:str):
     return preprocess_images_seg(t1, t1ce, flair, t2w, seg)
 
 def preprocess_brats2024goat_tensor(path:str):
+    """Crops black background and applies znormalization to each modality.
+
+    Returns: torch.Tensor[t1, t1ce, flair, t2w], torch.Tensor[seg]."""
+    import torch
+    images, seg = preprocess_brats2024goat(path)
+    return torch.from_numpy(images).to(torch.float32), torch.from_numpy(seg.astype(np.int32))
+
+
+def preprocess_brats2024gli(path:str):
+    """Crops black background and applies znormalization to each modality.
+
+    Returns: ndarray[t1, t1ce, flair, t2w], ndarray[seg]."""
+    t1 = find_file_containing(path, "t1n.")
+    t1ce = find_file_containing(path, "t1c.")
+    flair = find_file_containing(path, "t2f.")
+    t2w = find_file_containing(path, "t2w.")
+    seg = find_file_containing(path, "seg.")
+    return preprocess_images_seg(t1, t1ce, flair, t2w, seg)
+
+def preprocess_brats2024gli_tensor(path:str):
+    """Crops black background and applies znormalization to each modality.
+
+    Returns: torch.Tensor[t1, t1ce, flair, t2w], torch.Tensor[seg]."""
     import torch
     images, seg = preprocess_brats2024goat(path)
     return torch.from_numpy(images).to(torch.float32), torch.from_numpy(seg.astype(np.int32))

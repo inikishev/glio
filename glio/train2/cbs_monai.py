@@ -1,5 +1,5 @@
 import statistics
-
+from collections.abc import Sequence
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -10,7 +10,7 @@ from ..design.EventModel import Callback, EventModel, CBMethod
 from ..torch_tools import one_hot_mask
 from .cbs_metrics import CBMetric
 
-__all__ = ["MONAI_Dice", "MONAI_GeneralizedDice", "MONAI_IoU", "MONAI_ROCAUC", "MONAI_ConfusionMatrix", "MONAI_ConfusionMatrixMetrics"]
+__all__ = ["MONAI_Dice", "MONAI_GeneralizedDice", "MONAI_IoU", "MONAI_ROCAUC", "MONAI_ConfusionMatrix", "MONAI_ConfusionMatrixMetrics", "MONAI_ConfusionMatrixMetricsMean"]
 
 class MONAI_Dice(CBMetric):
     """Коэффициент Сёренсена (пересечение к общему кол-ву)"""
@@ -114,6 +114,7 @@ MONAI_CM_METRICS = (
     "sensitivity",
     "specificity",
     "precision",
+    "recall",
     "negative predictive value",
     "miss rate",
     "fall out",
@@ -129,7 +130,7 @@ MONAI_CM_METRICS = (
     "informedness",
     "markedness",
 )
-class MONAI_ConfusionMatrixMetrics(CBMethod):
+class MONAI_ConfusionMatrixMetricsMean(CBMethod):
     order = 1
     """Площадь под кривой точности-полноты"""
     def __init__(self, metrics = MONAI_CM_METRICS, key = 'confusion matrix', prefix=''):
@@ -147,3 +148,42 @@ class MONAI_ConfusionMatrixMetrics(CBMethod):
         cm = learner.logger.last(f'test {self.key}')
         for metric in self.metrics:
             learner.log(f'test {self.prefix}{metric}', monai.metrics.compute_confusion_matrix_metric(metric, cm).mean()) # type:ignore
+            
+            
+class MONAI_ConfusionMatrixMetrics(CBMethod):
+    order = 1
+    """Площадь под кривой точности-полноты"""
+    def __init__(self, classes:Sequence, metrics = MONAI_CM_METRICS, prefix='', include_bg=True):
+        super().__init__()
+        self.metrics = metrics
+        self.prefix = prefix
+        self.classes = classes
+        self.include_bg = include_bg
+        
+        self.list_of_cm = []
+
+    # def after_train_batch(self, learner:Learner):
+    #     cm = learner.logger.last('train confusion matrix')
+    #     for metric in self.metrics:
+    #         learner.log(f'train {metric}', monai.metrics.compute_confusion_matrix_metric(metric, cm).mean()) # type:ignore
+
+    def before_test_epoch(self, learner:Learner):
+            self.list_of_cm = []
+            
+    def after_test_batch(self, learner:Learner):
+        self.list_of_cm.append(
+            monai.metrics.get_confusion_matrix( # type:ignore
+                one_hot_mask(learner.preds.argmax(1), learner.preds.shape[1]).swapaxes(0, 1),
+                learner.targets,
+                include_background=self.include_bg,
+            )
+        )
+    def after_test_epoch(self, learner:Learner):
+        cm = torch.cat(self.list_of_cm, 0)
+        for metric in self.metrics:
+            values = monai.metrics.compute_confusion_matrix_metric(metric, cm).nanmean(0) # type:ignore
+            for cls, val in zip(self.classes, values):
+                if val is not None:
+                    learner.log(f'test {self.prefix}{metric} - {cls}', val) # type:ignore
+                
+            learner.log(f'test {self.prefix}{metric} - mean', values.nanmean()) # type:ignore

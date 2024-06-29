@@ -29,7 +29,7 @@ class FastProgressBar(CBMethod):
         self.maxv= maxv
 
     def before_fit(self, learner:Learner):
-        self.mbar = learner.epochs_iterator = master_bar(learner.epochs_iterator)
+        self.mbar = learner.epochs_iterator = master_bar(learner.epochs_iterator) # type:ignore
 
     def before_any_epoch(self, learner:Learner):
         learner.dl = progress_bar(learner.dl, leave=False, parent=self.mbar)

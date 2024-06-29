@@ -2,7 +2,7 @@ from typing import Any
 import random
 import torch
 import joblib
-from glio.torch_tools import one_hot_mask
+from glio.torch_tools import one_hot_mask, MRISlicer
 from glio.python_tools import SliceContainer, reduce_dim, Compose
 
 # RHUH_PATH = r"E:\dataset\RHUH-GBM"
@@ -27,49 +27,28 @@ from glio.python_tools import SliceContainer, reduce_dim, Compose
 RHUH_TRAIN = r"E:\dataset\RHUH-GBM\rhuh full v2 train.joblib"
 RHUH_TEST = r"E:\dataset\RHUH-GBM\rhuh full v2 test.joblib"
 
-BRATS_TRAIN = r"E:\dataset\BRaTS2024-GoAT\brats2024-96 v2 train.joblib"
-BRATS_TEST = r"E:\dataset\BRaTS2024-GoAT\brats2024-96 v2 test.joblib"
+BRATSGOAT_TRAIN = r"E:\dataset\BRaTS2024-GoAT\brats2024-96 v2 train.joblib"
+BRATSGOAT_TEST = r"E:\dataset\BRaTS2024-GoAT\brats2024-96 v2 test.joblib"
 
-BRATSGLI_0_400 = r"E:\dataset\BraTS-GLI\brats-gli full 0-400.joblib"
-BRATSGLI_400_500 = r"E:\dataset\BraTS-GLI\brats-gli full 400-500.joblib"
+BRATSGLI_0_75 = r"E:\dataset\BraTS-GLI v2\brats-gli 0-75.joblib"
+BRATSGLI_75_100 = r"E:\dataset\BraTS-GLI v2\brats-gli 75-100.joblib"
+BRATSGLI_0_1000 = r"E:\dataset\BraTS-GLI v2\brats-gli 120 0-1000.joblib"
+BRATSGLI_1000_1350 = r"E:\dataset\BraTS-GLI v2\brats-gli 120 1000-1350.joblib"
 
-def get_ds_2d(path) -> list[tuple[torch.Tensor, torch.Tensor]]:
-    ds:list[list[tuple[SliceContainer,SliceContainer]]] = joblib.load(path)
-    return [(i[0](), i[1]()) for j in ds for i in j]
+def get_ds(path, around=1, any_prob = 0.05) -> list[MRISlicer]:
+    ds:list[MRISlicer] = joblib.load(path)
+    for i in ds: i.set_settings(around = around, any_prob = any_prob)
+    return ds
 
-def loader_2d(sample:tuple[torch.Tensor, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
-    return sample[0].to(torch.float32), one_hot_mask(sample[1], 4)
-
-def get_ds_around(path, around=1) -> list[tuple[list[torch.Tensor],torch.Tensor]]:
-    ds:list[list[tuple[SliceContainer,SliceContainer]]] = joblib.load(path)
-    res = []
-    for slices in ds:
-        for i in range(around, len(slices) - around):
-            stack = slices[i - around : i + around + 1]
-            images = [s[0]() for s in stack]
-            seg = slices[i][1]()
-            res.append((images, seg))
-    return res
-
-
-def loader_around(sample:tuple[list[torch.Tensor],torch.Tensor], num_classes=4) -> tuple[torch.Tensor, torch.Tensor]:
-    return torch.cat(sample[0], 0).to(torch.float32), one_hot_mask(sample[1], num_classes)
-
-def loader_around_fix(sample:tuple[list[torch.Tensor],torch.Tensor], num_classes=4) -> tuple[torch.Tensor, torch.Tensor]:
-    return torch.cat(sample[0], 0).to(torch.float32)[:,:96,:96], one_hot_mask(sample[1], num_classes)[:,:96,:96]
-
-def loader_around_seq(sample:tuple[list[torch.Tensor],torch.Tensor], num_classes=4) -> tuple[torch.Tensor, torch.Tensor]:
-    return torch.stack(reduce_dim(list(zip(*sample[0]))), 0).to(torch.float32), one_hot_mask(sample[1], num_classes)
-
-def loader_around_seq_fix(sample:tuple[list[torch.Tensor],torch.Tensor], num_classes=4) -> tuple[torch.Tensor, torch.Tensor]:
-    return torch.stack(reduce_dim(list(zip(*sample[0]))), 0).to(torch.float32)[:,:96,:96], one_hot_mask(sample[1], num_classes)[:,:96,:96]
+def loader(x:MRISlicer) -> tuple[torch.Tensor, torch.Tensor]:
+    return x()
 
 def randcrop(x: tuple[torch.Tensor, torch.Tensor], size = (96,96)):
     if x[0].shape[1] == size[0] and x[0].shape[2] == size[1]: return x
     #print(x[0].shape)
     startx = random.randint(0, (x[0].shape[1] - size[0]) - 1)
     starty = random.randint(0, (x[0].shape[2] - size[1]) - 1)
-    return x[0][:, startx:startx+size[0], starty:starty+size[1]], x[1][:, startx:startx+size[0], starty:starty+size[1]]
+    return x[0][:, startx:startx+size[0], starty:starty+size[1]].to(torch.float32), one_hot_mask(x[1][startx:startx+size[0], starty:starty+size[1]], 5)
 
 def shuffle_channels(x:torch.Tensor):
     return x[torch.randperm(x.shape[0])]

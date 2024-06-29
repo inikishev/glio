@@ -141,7 +141,7 @@ class Plot:
             return ax
         self.tfms.append(imshow)
         return self
-    
+
     #def mask(x)
 
     def imshow_batch(self,
@@ -220,11 +220,51 @@ class Plot:
         grid = make_grid(x, nrow=grid_rows, padding=padding, normalize=normalize, scale_each=scale_each, pad_value=pad_value).permute(1,2,0) # pylint:disable=W0621 # type:ignore
 
         # we get HWC, now imshow
-        def imshow_grid(ax:Axes) -> Axes:
+        def imshow_batch(ax:Axes) -> Axes:
             ax.imshow(grid, label=label, cmap=cmap, alpha=alpha, **kwargs)
             return ax
-        self.tfms.append(imshow_grid)
+        self.tfms.append(imshow_batch)
         return self
+
+    def seg_overlay(self, x:torch.Tensor | np.ndarray, mode = 'auto', ignore_bg = True, alpha=0.3, **kwargs):
+        """Overlay up to 7 classes of segmentation, where each pixel is has only one class."""
+        if isinstance(x, torch.Tensor): x = x.detach().cpu()
+        elif not isinstance(x, (np.ndarray,torch.Tensor)): x = torch.from_numpy(np.array(x))
+        # argmax if not argmaxed
+        if x.ndim == 3:
+            if mode == 'auto':
+                if x.shape[0] < x.shape[2]: mode = 'c*'
+                else: mode = '*c'
+            if mode == 'c*': x = x.argmax(0)
+            else: x = x.argmax(-1)
+            
+
+        ch = 1 if ignore_bg else 0
+        # 3 channel image
+        segm = torch.zeros((4, *x.shape), dtype=torch.uint8)
+        segm[0] = torch.where(x == ch, torch.tensor(255), segm[0]); ch+=1
+        segm[1] = torch.where(x == ch, torch.tensor(255), segm[1]); ch+=1
+        segm[2] = torch.where(x == ch, torch.tensor(255), segm[2]); ch+=1
+
+        # compound colors
+        segm[:2] = torch.where(x == ch, torch.tensor(255), segm[:2]); ch+=1
+        segm[1:3] = torch.where(x == ch, torch.tensor(255), segm[1:3]); ch+=1
+
+        # last compound color
+        segm[0] = torch.where(x == ch, torch.tensor(255), segm[0])
+        segm[2] = torch.where(x == ch, torch.tensor(255), segm[2]); ch+=1
+
+        # last is white
+        segm[:3] = torch.where(x == ch, torch.tensor(255), segm[:3]); ch+=1
+        segm[3] = torch.where(segm[:3].amax(0) > torch.tensor(0), torch.tensor(int(alpha*255)), torch.tensor(0))
+        #print(segm)
+
+        def seg_overlay(ax:Axes) -> Axes:
+            ax.imshow(segm.permute(1,2,0), **kwargs)
+            return ax
+        self.tfms.append(seg_overlay)
+        return self
+
 
     def path(self,
                 x,
@@ -407,9 +447,9 @@ class Plot:
         self.tfms.append(axoff)
         return self
 
-    def axlabels(self, xlabel = None, ylabel=None) -> "Plot":
-        if xlabel is not None: self.xlabel(xlabel)
-        if ylabel is not None: self.ylabel(ylabel)
+    def axlabels(self, xlabel = None, ylabel=None, fontsize = None) -> "Plot":
+        if xlabel is not None: self.xlabel(xlabel, fontsize=fontsize)
+        if ylabel is not None: self.ylabel(ylabel, fontsize=fontsize)
         return self
 
     def title(self, title, **kwargs) -> "Plot":

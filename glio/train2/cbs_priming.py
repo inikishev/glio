@@ -29,8 +29,7 @@ class LRFinderPriming(CBCond):
 
         backup = copy_state_dict(
             learner.state_dict(
-                filt=lambda x: x not in ("logger", "inputs", "targets", "preds")
-                and not isinstance(x, torch.Tensor)
+                attrs_state_dict = ("model", "optimizer"),
             )
         )
 
@@ -80,7 +79,7 @@ class IterLR(CBCond):
 
     def __call__(self, learner:Learner):
         with learner.without(["IterLR", "FastProgressBar"]):
-            backup = copy_state_dict(learner.state_dict(filt=lambda x: x not in ("logger", "inputs", "targets", "preds") and not isinstance(x, torch.Tensor)))
+            backup = copy_state_dict(learner.state_dict(attrs_state_dict = ("model", "optimizer"),))
             start_lr = get_lr(learner.optimizer) # type:ignore
             start_loss = smart_to_float(learner.loss)
             max_dloss = -float("inf")

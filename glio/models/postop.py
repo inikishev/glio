@@ -31,6 +31,14 @@ class ContextHRN(nn.Module):
         else:
             self.processed = self.hrn(x)
             return self.processed
+        
+class ContextHRN_ONNX(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.hrn = HighResNet_noReLUattheend(12, 20)
+
+    def forward(self, x:torch.Tensor):
+        return self.hrn(x)
 
 class ContextSegResNetDS_FineTune(nn.Module):
     def __init__(self):
@@ -41,11 +49,26 @@ class ContextSegResNetDS_FineTune(nn.Module):
         self.context = self.context_block(x)
         return self.net(torch.cat((x, self.context), 1))
 
+class ContextSegResNetDS_FineTune_ONNX(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.context_block = ContextHRN_ONNX()
+        self.net = SegResNetDS(2, 32, 32, 4)
+    def forward(self, x:torch.Tensor):
+        context = self.context_block(x)
+        return self.net(torch.cat((x, context), 1))
+
 
 def get_model():
     model = ContextSegResNetDS_FineTune().to(torch.device("cuda"))
     model.load_state_dict(torch.load(r"F:\Stuff\Programming\experiments\vkr\training\RHUH v2 full + BRATS v2 test, 32\models\ft int+flip, contextnet-SegResNetDS+adan+dicefocal lr1e-03 OneCycleLR\model.pt"))
     return model
+
+def get_model_ONNX():
+    model = ContextSegResNetDS_FineTune_ONNX().to(torch.device("cuda"))
+    model.load_state_dict(torch.load(r"F:\Stuff\Programming\experiments\vkr\training\RHUH v2 full + BRATS v2 test, 32\models\ft int+flip, contextnet-SegResNetDS+adan+dicefocal lr1e-03 OneCycleLR\model.pt"))
+    return model
+
 
 def get_learner():
     from ..train2 import Learner

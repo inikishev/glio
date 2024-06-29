@@ -28,14 +28,14 @@ class Accelerate(CBEvent):
             learner.model,
             learner.optimizer,
             learner.scheduler,
-            learner.dl_train,
-            learner.dl_test,
+            learner.dltrain,
+            learner.dltest,
         ) = self.accelerator.prepare(
             learner.model,
             learner.optimizer,
             learner.scheduler,
-            learner.dl_train,
-            learner.dl_test,
+            learner.dltrain,
+            learner.dltest,
         )
 
     def __str__(self):

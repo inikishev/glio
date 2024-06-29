@@ -1,7 +1,7 @@
 """Siodj"""
 import math
 from typing import Sequence, Any
-import polars as pl
+#import polars as pl
 import torch, numpy as np
 from monai import transforms as mtf
 import SimpleITK as sitk

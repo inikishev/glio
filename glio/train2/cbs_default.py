@@ -44,21 +44,32 @@ class Default_SchedulerStep(CBEvent):
         if learner.scheduler is not None:
             learner.scheduler.step()
 
-class Default_SetMode(CBEvent):
-    event = "set_mode"
-    def __call__(self, learner: "Learner", train=True):
-        if hasattr(learner.model, "train") and hasattr(learner.optimizer, "eval"):
-            if train: learner.model.train()
-            else: learner.model.eval()
-        # if hasattr(learner.optimizer, "train") and hasattr(learner.optimizer, "eval"):
-        #     if train: learner.optimizer.train() # type:ignore
-        #     else: learner.optimizer.eval() # type:ignore
+# class Default_SetMode(CBEvent):
+#     event = "set_mode"
+#     def __call__(self, learner: "Learner", train=True):
+#         if hasattr(learner.model, "train") and hasattr(learner.optimizer, "eval"):
+#             if train: learner.model.train()
+#             else: learner.model.eval()
+#         # if hasattr(learner.optimizer, "train") and hasattr(learner.optimizer, "eval"):
+#         #     if train: learner.optimizer.train() # type:ignore
+#         #     else: learner.optimizer.eval() # type:ignore
 
+class Default_Train(CBEvent):
+    event = "train"
+    def __call__(self, learner: "Learner"):
+        if hasattr(learner.model, "train") and callable(learner.model.train): learner.model.train()
+        if hasattr(learner.optimizer, "train") and callable(learner.optimizer.train): learner.optimizer.train() # type:ignore
+
+class Default_Eval(CBEvent):
+    event = "eval"
+    def __call__(self, learner: "Learner"):
+        if hasattr(learner.model, "eval") and callable(learner.model.eval): learner.model.eval()
+        if hasattr(learner.optimizer, "eval") and callable(learner.optimizer.eval): learner.optimizer.eval() # type:ignore
 
 class Default_OneBatch(CBEvent):
     event = "one_batch"
     def __call__(self, learner: "Learner", inputs: torch.Tensor, targets: torch.Tensor, train=True):
-        learner.set_mode(train)
+        learner.train()
         if learner.accelerator is None: inputs, targets = inputs.to(learner.device), targets.to(learner.device)
         with nullcontext() if train else torch.no_grad():
 
@@ -79,7 +90,7 @@ class Default_OneBatch(CBEvent):
 class Default_Inference(CBEvent):
     event = "inference"
     def __call__(self, learner: "Learner", batch: torch.Tensor| Any, to_cpu = True):
-        learner.set_mode(False)
+        learner.eval()
         batch = to_device(batch, learner.device)
         with torch.no_grad():
             if to_cpu: return smart_detach_cpu(learner.forward(batch))
@@ -97,62 +108,32 @@ class Default_Fit(CBEvent):
     def __call__(
         self,
         learner:"Learner",
-        num_epochs: int,
-        dl_train: Optional[torch.utils.data.DataLoader | Any] = None,
-        dl_test: Optional[torch.utils.data.DataLoader | Any] = None,
-        test_first=True,
-        catch_interrupt=True,
-        test_on_interrupt = True,
-        always_after_fit = True,
-        extra:Optional[Callback | Iterable[Callback]] = None,
-        without:Optional[str | Iterable[str]] = None
+        epochs_iterator,
+        dltrain: Optional[torch.utils.data.DataLoader | Any] = None,
+        dltest: Optional[torch.utils.data.DataLoader | Any] = None,
+        test_first = False,
+        test_every: int = 1,
     ):
-        # Присваиваем аттрибуты
-        learner.dl_train = dl_train
-        learner.dl_test = dl_test
-        learner.test_first = test_first
-        learner.catch_interrupt = catch_interrupt
-        if catch_interrupt: learner.catch_fit_exceptions = KeyboardInterrupt
-        else: learner.catch_fit_exceptions = ()
-        learner.test_on_interrupt = test_on_interrupt
-        learner.always_after_fit = always_after_fit
-        learner.num_epochs = num_epochs
-        learner.epochs_iterator = range(learner.num_epochs)
-        learner.cur_epoch = 0
-        if learner.accelerator is None: learner.model = to_device(learner.model, learner.device) # type:ignore
+
+        for learner.cur_epoch in epochs_iterator:
+            learner.event("before_epoch")
+            with learner.context("full_epoch"):
+            # тестирование в начале
+                if learner.cur_epoch == 0 and test_first and dltest is not None:
+                    learner.one_epoch(dltest, train=False)
+
+                # обучение
+                if dltrain is not None:
+                    learner.one_epoch(dltrain, train=True)
+
+                # тестирование
+                if dltest is not None and learner.cur_epoch % test_every == 0:
+                    learner.one_epoch(dltest, train=False)
+
+                learner.total_epoch += 1
+            learner.event("after_epoch")
 
 
-        # Запускаем цикл обучения и тестирования
-        with learner.context("fit", extra=extra, without=without):
-            try:
-                learner.event("before_fit")
-                # итерация по обучающей выборке и тестированию, если они есть.
-                for learner.cur_epoch in learner.epochs_iterator:
-                    learner.event("before_epoch")
-                    with learner.context("full_epoch"):
-                    # тестирование в начале
-                        if learner.cur_epoch == 0 and learner.test_first and learner.dl_test is not None:
-                            learner.one_epoch(learner.dl_test, train=False)
-
-                        # обучение
-                        if learner.dl_train is not None:
-                            learner.one_epoch(learner.dl_train, train=True)
-
-                        # тестирование
-                        if learner.dl_test is not None:
-                            learner.one_epoch(learner.dl_test, train=False)
-
-                        learner.total_epoch += 1
-                    learner.event("after_epoch")
-
-            except learner.catch_fit_exceptions:
-                if learner.test_on_interrupt and learner.status == "train" and learner.dl_test is not None:
-                    print("Keyboard interrupt, testing one last time... Press stop again to cancel.")
-                    try: learner.one_epoch(learner.dl_test, train=False)
-                    except learner.catch_fit_exceptions: print("Keyboard interrupt, stopping testing...")
-                else: print("Keyboard interrupt, stopping the training...")
-            finally: 
-                if learner.always_after_fit or (not learner.catch_interrupt): learner.event("after_fit")
 
 class Default_Log(CBEvent):
     event = "log"

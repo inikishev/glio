@@ -8,7 +8,7 @@ import torchvision.utils
 import numpy as np
 import matplotlib.pyplot as plt
 from ..python_tools import key_value, reduce_dim
-from ..transforms import fToRange,fResize,fToChannels
+from ..transforms import fToRange,fToChannels
 
 def info(X, tab = ''):
     v_info = f'{tab}type = {type(X)}'
@@ -120,7 +120,7 @@ def datashow(data, labels=None, title=None, figsize=None, nrows=None, ncols=None
             # Resize the element if resize is provided
             if data[i].ndim in (2, 3) and resize:
                 resize = (resize, resize) if isinstance(resize, int) else resize
-                data[i] = fResize(data[i], *resize)
+                #data[i] = fResize(data[i], *resize)
 
             if data[i].ndim == 3:
                 data_shape = data[i].shape

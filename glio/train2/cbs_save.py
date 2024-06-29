@@ -1,45 +1,76 @@
 """Docstring """
+import os, shutil
 from collections.abc import Mapping, Sequence
 from ..design.EventModel import CBCond, CBEvent
 from .Learner import Learner
+from ..python_tools import int_at_beginning
 
 class Save_Best(CBEvent):
     event = "after_test_epoch"
     def __init__(
         self,
-        folder="checkpoints",
+        dir="checkpoints",
+        keep_old = False,
+        serialize=False,
         metrics: Mapping[str, str] = {"test loss": "low", "test accuracy": "high"},
-        keep_old=False,
-        cp_name=None,
-        model_name=None,
-        warn=False,
     ):  # pylint:disable=W0102
         super().__init__()
-        self.folder, self.keep_old, self.cp_name, self.model_name, self.warn = folder, keep_old, cp_name, model_name, warn
+        self.dir = dir
+        self.keep_old = keep_old
+        self.serialize = serialize
         if isinstance(metrics, Sequence): metrics = {m: ("low" if "loss" in m else "high") for m in metrics}
         if not isinstance(metrics, Mapping): metrics = {m: ("low" if "loss" in m else "high") for m in (metrics, )}
 
         self.metrics = {k:v.lower() for k,v in metrics.items()}
         self.best_metrics = {k:float("inf") if v == "low" else -float("inf") for k,v in metrics.items()}
 
+        self.best_paths = {}
+
+
     def __call__(self, learner: Learner):
+        # make folders
+        checkpoint_path = learner.get_checkpoint_dir(self.dir)
+
+        # avoid saving multiple checkpoints if multiple metrics improved
+        is_already_saved = False
+
+        # iterate over metrics
         for met, target in self.metrics.items():
+            # check if metric in logger
             if met in learner.logger:
+                # get last value
                 val = learner.logger.last(met)
+                # if lowest means best
                 if target == "low":
+                    # if last value is lower
                     if  val < self.best_metrics[met]:
-                        learner.save_checkpoint(folder = self.folder, cp_name = self.cp_name, name = self.model_name, warn = self.warn)
+                        # if not keep old, remove last checkpoint for this metric
+                        if (not self.keep_old) and met in self.best_paths: shutil.rmtree(self.best_paths[met])
+                        # save checkpoint
+                        if not is_already_saved: learner.checkpoint(dir = checkpoint_path, serialize=self.serialize)
+                        # save new best value
                         self.best_metrics[met] = val
+                        # save path to this metrics checkpoint
+                        self.best_paths[met] = checkpoint_path
+                        is_already_saved = True
                 else:
                     if val > self.best_metrics[met]:
-                        learner.save_checkpoint(folder = self.folder, cp_name = self.cp_name, name = self.model_name, warn = self.warn)
+                        # if not keep old, remove last checkpoint for this metric
+                        if (not self.keep_old) and met in self.best_paths: shutil.rmtree(self.best_paths[met])
+                        # save checkpoint
+                        if not is_already_saved: learner.checkpoint(dir = checkpoint_path, serialize=self.serialize)
+                        # save new best value
                         self.best_metrics[met] = val
+                        # save path to this metrics checkpoint
+                        self.best_paths[met] = checkpoint_path
+                        is_already_saved = True
 
 class Save_Last(CBEvent):
     event = "after_fit"
-    def __init__(self, folder = "checkpoints", cp_name = None, model_name = None, warn=False): #pylint:disable=W0102
+    def __init__(self, dir = "checkpoints", serialize=False): #pylint:disable=W0102
         super().__init__()
-        self.folder, self.cp_name, self.model_name, self.warn = folder, cp_name, model_name, warn
+        self.dir = dir
+        self.serialize = serialize
 
     def __call__(self, learner: Learner):
-        learner.save_checkpoint(folder = self.folder, cp_name = self.cp_name, name = self.model_name, warn = self.warn)
+        learner.checkpoint(dir = learner.get_checkpoint_dir(self.dir), serialize=self.serialize)

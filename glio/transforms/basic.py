@@ -302,19 +302,19 @@ def fToSquareInt(img):
         else: img = np.repeat(img, repeats = int(img.shape[w] / img.shape[h]), axis = h)
     return img
 
-import cv2
-def fResize(img, h, w): # TODO
-    if isinstance(img, torch.Tensor):
-        img = np.array(img.cpu().detach(), copy=False)
-        was_t = True
-    else: was_t = False
-    if img.ndim == 3 and img.shape[0] < img.shape[2]:
-        img = fToChannelsLast(img)
-        img = cv2.resize(img, (w, h), interpolation = cv2.INTER_AREA) # type:ignore # pylint:disable=E1101
-        return fToChannelsFirst(torch.as_tensor(img) if was_t else img)
-    else:
-        img = cv2.resize(img, (w, h), interpolation = cv2.INTER_AREA)# pylint:disable=E1101
-        return torch.as_tensor(img) if was_t else img
+#import cv2
+# def fResize(img, h, w): # TODO
+#     if isinstance(img, torch.Tensor):
+#         img = np.array(img.cpu().detach(), copy=False)
+#         was_t = True
+#     else: was_t = False
+#     if img.ndim == 3 and img.shape[0] < img.shape[2]:
+#         img = fToChannelsLast(img)
+#         img = cv2.resize(img, (w, h), interpolation = cv2.INTER_AREA) # type:ignore # pylint:disable=E1101
+#         return fToChannelsFirst(torch.as_tensor(img) if was_t else img)
+#     else:
+#         img = cv2.resize(img, (w, h), interpolation = cv2.INTER_AREA)# pylint:disable=E1101
+#         return torch.as_tensor(img) if was_t else img
 
 def z_normalize(x:torch.Tensor | np.ndarray):
     if x.std() != 0: return (x - x.mean()) / x.std()
