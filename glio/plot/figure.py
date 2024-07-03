@@ -122,7 +122,7 @@ class Plot:
 
         # if batched, take central element
         if mode == "*c*":
-            while x.ndim > 3: x = x[int(x.shape[-1]//2)]
+            while x.ndim > 3: x = x[int(x.shape[0]//2)]
             mode = "c*"
 
         # if channel first, transpose
@@ -837,7 +837,7 @@ def qimshow_batch(x,
 
 def qimshow_grid(images,
                  labels = None,
-                 maxelems = 16,
+                 maxelems = 64,
                  ncol = None,
                  nrow = None,
                  cmap = 'gray',

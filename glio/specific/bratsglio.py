@@ -13,7 +13,7 @@ __all__ = [
     'get_brats_gli_preprocessed_by_idx',
     'visualize_brats_reference',
     'visualize_brats_reference_all',
-    'SaveReferenceVisualizationsAfterEachEpoch',
+    'SaveReferenceVisualizationsAfterEachEpochCB',
     
     
 ]
@@ -102,7 +102,7 @@ def visualize_brats_reference_all(inferer, around=1, overlap=0.75, expand=None, 
     for i in range(len(brats_gli_references)): 
         visualize_brats_reference(i, inferer=inferer, around=around, overlap=overlap, expand=expand, save=save, folder=folder,prefix=prefix)
 
-class SaveReferenceVisualizationsAfterEachEpoch(CBMethod):
+class SaveReferenceVisualizationsAfterEachEpochCB(CBMethod):
     order = 1
     def __init__(self, folder, brats=tuple(range(len(brats_gli_references)))):
         self.folder=folder

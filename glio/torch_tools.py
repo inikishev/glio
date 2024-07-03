@@ -780,8 +780,9 @@ class MRISlicer:
         # get slice
         if self.around == 0: return tensor[:, coord], seg[coord]
 
-        # or get slices around
-        return tensor[:, coord - self.around : coord + self.around + 1].flatten(0,1), seg[coord]
+        # or get slices around (and flip slice spatial dimension with 0.5 p)
+        if random.random() > 0.5: return tensor[:, coord - self.around : coord + self.around + 1].flatten(0,1), seg[coord]
+        return tensor[:, coord - self.around : coord + self.around + 1].flip((1,)).flatten(0,1), seg[coord]
 
     def get_random_slice(self):
         """Get a random slice, ignores `any_prob`."""
@@ -865,7 +866,7 @@ class MRISlicer:
     def get_all_empry_slices(self) -> list[tuple[torch.Tensor, torch.Tensor]]:
         """Get all slices that have segmentation."""
         return [i() for i in self.get_all_empty_slice_callables()]
-    
+
     def get_non_empty_count(self): return len(self.x) + len(self.y) + len(self.z)
 
     def get_anyp_random_slice_callables(self):
