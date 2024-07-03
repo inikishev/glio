@@ -5,7 +5,15 @@ from ..design.EventModel import CBContext
 from . hooks_base import LearnerForwardHook, LearnerBackwardHook
 from ..torch_tools import is_container
 
-class Log_LayerSignalDistribution(LearnerForwardHook, CBContext):
+__all__ = [
+    "LogLayerSignalDistributionCB",
+    "LogLayerSignalHistorgramCB",
+    "LogLayerGradDistributionCB",
+    "LogLayerGradHistorgramCB",
+]
+
+
+class LogLayerSignalDistributionCB(LearnerForwardHook, CBContext):
     def __init__(self, step: int = 1, mean = True, std = True, var = True, min = True, max = True, filt = lambda x: not is_container(x)): # pylint: disable=W0622
         self.step = step
 
@@ -20,7 +28,7 @@ class Log_LayerSignalDistribution(LearnerForwardHook, CBContext):
             if self.min: learner.log(f'{name} output min', outputs.min())
             if self.max: learner.log(f'{name} output max', outputs.max())
 
-class Log_LayerSignalHistorgram(LearnerForwardHook, CBContext):
+class LogLayerSignalHistorgramCB(LearnerForwardHook, CBContext):
     def __init__(self, step: int = 1, range = 10, bins = 60, top_dead = 1, filt = lambda x: not is_container(x)): # pylint: disable=W0622
         self.step = step
 
@@ -34,7 +42,7 @@ class Log_LayerSignalHistorgram(LearnerForwardHook, CBContext):
             zero = int(len(hist)/2)
             if self.top_dead is not None: learner.log(f'{name} dead activations', hist[zero-self.top_dead:zero+self.top_dead].sum()/hist.sum())
 
-class Log_LayerGradDistribution(LearnerBackwardHook, CBContext):
+class LogLayerGradDistributionCB(LearnerBackwardHook, CBContext):
     def __init__(self, step: int = 1, mean = True, std = True, var = True, min = True, max = True, filt = lambda x: not is_container(x)): # pylint: disable=W0622
         self.step = step
 
@@ -57,7 +65,7 @@ class Log_LayerGradDistribution(LearnerBackwardHook, CBContext):
                 if self.min: learner.log(f'{name} output grad min', grad_output[0].min())
                 if self.max: learner.log(f'{name} output grad max', grad_output[0].max())
 
-class Log_LayerGradHistorgram(LearnerBackwardHook, CBContext):
+class LogLayerGradHistorgramCB(LearnerBackwardHook, CBContext):
     def __init__(self, step: int = 1, range = None, bins = 60, filt = lambda x: not is_container(x)): # pylint: disable=W0622
         self.step = step
 

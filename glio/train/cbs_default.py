@@ -9,36 +9,52 @@ from ..torch_tools import ensure_device, ensure_detach, ensure_detach_cpu
 if TYPE_CHECKING:
     from .Learner import Learner
 
+__all__ = [
+    "DefaultForwardCB",
+    "DefaultGetLossCB",
+    "DefaultBackwardCB",
+    "DefaultOptimizerStepCB",
+    "DefaultZeroGradCB",
+    "DefaultSchedulerStepCB",
+    "DefaultTrainCB",
+    "DefaultEvalCB",
+    "DefaultOneBatchCB",
+    "DefaultInferenceCB",
+    "DefaultOneEpochCB",
+    "DefaultFitCB",
+    "DefaultLogCB",
+]
 
-class Default_Forward(CBEvent):
+
+class DefaultForwardCB(CBEvent):
     event = "forward"
     def __call__(self, learner: "Learner", inputs: torch.Tensor):
         learner.preds = learner.model(inputs)
         return learner.preds
 
-class Default_GetLoss(CBEvent):
+class DefaultGetLossCB(CBEvent):
     event = "get_loss"
     def __call__(self, learner: "Learner", preds:torch.Tensor, targets: torch.Tensor):
         learner.loss = learner.loss_fn(preds, targets) # type:ignore
         return learner.loss
 
-class Default_Backward(CBEvent):
+class DefaultBackwardCB(CBEvent):
     event = "backward"
     def __call__(self, learner: "Learner"):
         if learner.accelerator is None: learner.loss.backward()
         else: learner.accelerator.backward(learner.loss)
 
-class Default_OptimizerStep(CBEvent):
+class DefaultOptimizerStepCB(CBEvent):
     event = "optimizer_step"
     def __call__(self, learner: "Learner", *args, **kwargs):
         learner.optimizer.step(*args, **kwargs) # type:ignore
 
-class Default_ZeroGrad(CBEvent):
+class DefaultZeroGradCB(CBEvent):
     event = "zero_grad"
     def __call__(self, learner: "Learner"):
         learner.optimizer.zero_grad() # type:ignore
 
-class Default_SchedulerStep(CBEvent):
+class DefaultSchedulerStepCB(CBEvent):
     event = "scheduler_step"
     def __call__(self, learner: "Learner"):
         if learner.scheduler is not None:
@@ -54,19 +70,19 @@ class Default_SchedulerStep(CBEvent):
 #         #     if train: learner.optimizer.train() # type:ignore
 #         #     else: learner.optimizer.eval() # type:ignore
 
-class Default_Train(CBEvent):
+class DefaultTrainCB(CBEvent):
     event = "train"
     def __call__(self, learner: "Learner"):
         if hasattr(learner.model, "train") and callable(learner.model.train): learner.model.train()
         if hasattr(learner.optimizer, "train") and callable(learner.optimizer.train): learner.optimizer.train() # type:ignore
 
-class Default_Eval(CBEvent):
+class DefaultEvalCB(CBEvent):
     event = "eval"
     def __call__(self, learner: "Learner"):
         if hasattr(learner.model, "eval") and callable(learner.model.eval): learner.model.eval()
         if hasattr(learner.optimizer, "eval") and callable(learner.optimizer.eval): learner.optimizer.eval() # type:ignore
 
-class Default_OneBatch(CBEvent):
+class DefaultOneBatchCB(CBEvent):
     event = "one_batch"
     def __call__(self, learner: "Learner", inputs: torch.Tensor, targets: torch.Tensor, train=True):
         learner.train()
@@ -87,7 +103,7 @@ class Default_OneBatch(CBEvent):
                 learner.scheduler_step()
 
 
-class Default_Inference(CBEvent):
+class DefaultInferenceCB(CBEvent):
     event = "inference"
     def __call__(self, learner: "Learner", batch: torch.Tensor| Any, to_cpu = True):
         learner.eval()
@@ -96,14 +112,14 @@ class Default_Inference(CBEvent):
             if to_cpu: return ensure_detach_cpu(learner.forward(batch))
             return ensure_detach(learner.forward(batch))
 
-class Default_OneEpoch(CBEvent):
+class DefaultOneEpochCB(CBEvent):
     event = "one_epoch"
     def __call__(self, learner: "Learner", dl: torch.utils.data.DataLoader | SupportsIter, train=True):
         for learner.cur_batch, (inputs, targets) in enumerate(dl): # type:ignore
             learner.one_batch(inputs, targets, train=train)
 
 
-class Default_Fit(CBEvent):
+class DefaultFitCB(CBEvent):
     event = "fit"
     def __call__(
         self,
@@ -135,7 +151,7 @@ class Default_Fit(CBEvent):
 
 
 
-class Default_Log(CBEvent):
+class DefaultLogCB(CBEvent):
     event = "log"
     def __call__(self, learner:"Learner", metric:str, value):
         learner.logger.add(metric, value, learner.total_batch)

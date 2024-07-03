@@ -2,7 +2,10 @@ import torch
 from ..design.EventModel import CBContext
 from .Learner import Learner
 
-class PerformanceTweaks(CBContext):
+__all__ = [
+    "PerformanceTweaksCB",
+]
+class PerformanceTweaksCB(CBContext):
     def __init__(self, cudnn_bench, onednn_fusion=True, detect_anomaly=False, checknan = False, autograd_profiler = False, emit_nvtx=False, gradcheck=False, gradgradcheck=False):
         """Insane speed ups.
 

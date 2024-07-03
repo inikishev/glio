@@ -7,7 +7,14 @@ from .Learner import Learner
 from ..design.EventModel import Callback, EventModel
 from .cbs_metrics import CBMetric
 
-class Torcheval_Precision(CBMetric):
+__all__ = [
+    "TorchevalPrecisionCB",
+    "TorchevalRecallCB",
+    "TorchevalF1CB",
+    "TorchevalAURPCCB",
+    "TorchevalRocAucCB",
+]
+class TorchevalPrecisionCB(CBMetric):
     def __init__(self, num_classes, argmax_preds = True, argmax_targets = False, average='micro', step=1, name="precision"):
         super().__init__(train = True, test = True, aggregate_func = statistics.mean)
         self.num_classes = num_classes
@@ -23,7 +30,7 @@ class Torcheval_Precision(CBMetric):
         else: targets = learner.targets.flatten()
         return float(tmf.multiclass_precision(preds, targets, average = self.average, num_classes=self.num_classes))
 
-class Torcheval_Recall(CBMetric):
+class TorchevalRecallCB(CBMetric):
     def __init__(self, num_classes, argmax_preds = True, argmax_targets = False, average='micro', step=1, name="recall"):
         super().__init__(train = True, test = True, aggregate_func = statistics.mean)
         self.num_classes = num_classes
@@ -39,8 +46,8 @@ class Torcheval_Recall(CBMetric):
         else: targets = learner.targets.flatten()
         return float(tmf.multiclass_recall(preds, targets, average = self.average, num_classes=self.num_classes))
 
-class Torcheval_Dice(CBMetric):
-    def __init__(self, num_classes, argmax_preds = True, argmax_targets = False, average='micro', step=1, name="dice"):
+class TorchevalF1CB(CBMetric):
+    def __init__(self, num_classes, argmax_preds = True, argmax_targets = False, average='micro', step=1, name="f1"):
         super().__init__(train = True, test = True, aggregate_func = statistics.mean)
         self.num_classes = num_classes
         self.argmax_preds, self.argmax_targets = argmax_preds, argmax_targets
@@ -53,10 +60,10 @@ class Torcheval_Dice(CBMetric):
         else: preds = learner.preds.flatten()
         if self.argmax_targets: targets = learner.targets.argmax(1).flatten()
         else: targets = learner.targets.flatten()
-        return float(tmf.multiclass_recall(preds, targets, average = self.average, num_classes=self.num_classes))
+        return float(tmf.multiclass_f1_score(preds, targets, average = self.average, num_classes=self.num_classes))
 
 
-class Torcheval_AURPC(CBMetric):
+class TorchevalAURPCCB(CBMetric):
     def __init__(self, num_classes, argmax_targets = False, average='macro', step=1, teststep = 1, name="average precision"):
         super().__init__(train = True, test = True, aggregate_func = statistics.mean)
         self.num_classes = num_classes
@@ -72,7 +79,7 @@ class Torcheval_AURPC(CBMetric):
         else: targets = learner.targets.flatten()
         return float(tmf.multiclass_auprc(preds, targets, average = self.average, num_classes=self.num_classes))
 
-class Torcheval_AUROC(CBMetric):
+class TorchevalRocAucCB(CBMetric):
     def __init__(self, num_classes, argmax_targets = False, average='macro', step=1,teststep = 1, name="roc auc"):
         super().__init__(train = True, test = True, aggregate_func = statistics.mean)
         self.num_classes = num_classes

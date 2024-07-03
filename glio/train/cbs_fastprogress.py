@@ -3,7 +3,11 @@ import numpy as np
 from fastprogress.fastprogress import master_bar, progress_bar
 from ..design.EventModel import CBMethod
 from .Learner import Learner
-class FastProgressBar(CBMethod):
+
+__all__ = [
+    "FastProgressBarCB",
+]
+class FastProgressBarCB(CBMethod):
     order = 90
     def __init__(
         self,

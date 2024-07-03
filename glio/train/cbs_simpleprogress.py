@@ -6,8 +6,13 @@ from ..design.EventModel import CBMethod
 from .Learner import Learner
 from ..progress_bar import PBar
 
-_NEWLINE = '\n'
-class SimpleProgressBar(CBMethod):
+__all__ = [
+    'SimpleProgressBarCB', 
+    'PrintLossCB', 
+    'PrintMetricsCB',
+    "PrintInverseDLossCB",
+]
+class SimpleProgressBarCB(CBMethod):
     order = 90
     def __init__(
         self,
@@ -50,11 +55,11 @@ class SimpleProgressBar(CBMethod):
     def after_fit(self, learner: Learner):
         self._write(learner)
 
-class PrintLoss(CBMethod):
+class PrintLossCB(CBMethod):
     def after_batch(self, learner: Learner):
         print(f'{learner.status} loss = {float(learner.loss.detach().cpu()):.4f}', end='     \r')
 
-class PrintMetrics(CBMethod):
+class PrintMetricsCB(CBMethod):
     order = 90
     def __init__(self, metrics:Sequence[str]=("train loss", "test loss", "train accuracy", "test accuracy")):
         super().__init__()
@@ -69,7 +74,7 @@ class PrintMetrics(CBMethod):
 
 
 
-class PrintInverseDLoss(CBMethod):
+class PrintInverseDLossCB(CBMethod):
     def __init__(self, length = 1.):
         """Idk.
 

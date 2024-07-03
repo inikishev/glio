@@ -3,7 +3,13 @@ from typing import Callable
 import torch
 from ..design.EventModel import CBContext
 from .Learner import Learner
-class Set_Optimizer(CBContext):
+
+__all__ = [
+    "SetOptimizerCB", 
+    "SetLossFnCB", 
+    "SetSchedulerCB",
+]
+class SetOptimizerCB(CBContext):
     """Sets optimizer"""
     def __init__(self, optimizer: torch.optim.Optimizer):
         super().__init__()
@@ -16,7 +22,7 @@ class Set_Optimizer(CBContext):
     def exit(self, learner: "Learner"):
         learner.optimizer = self.backup
 
-class Set_LossFn(CBContext):
+class SetLossFnCB(CBContext):
     """Sets loss function"""
     def __init__(self, loss_fn: Callable):
         super().__init__()
@@ -29,7 +35,7 @@ class Set_LossFn(CBContext):
     def exit(self, learner: "Learner"):
         learner.loss_fn = self.backup
 
-class Set_Scheduler(CBContext):
+class SetSchedulerCB(CBContext):
     """Sets scheduler"""
     def __init__(self, scheduler: torch.optim.lr_scheduler.LRScheduler):
         super().__init__()

@@ -7,25 +7,25 @@ from glio.torch_tools import one_hot_mask
 TITLE = "M2NIST"
 
 _CBSTUFF = lambda:  [
-    Save_Last('M2NIST checkpoints'), 
-    PerformanceTweaks(True), 
-    Accelerate("no"),
-    SimpleProgressBar(step=1),
-    LivePlot(128, plot_keys = ("4plotsplot01","10metrics01"),path_keys=("4plotspath250",)),
-    Summary(),
-    PlotSummary(),
+    SaveLastCB('M2NIST checkpoints'), 
+    PerformanceTweaksCB(True), 
+    AccelerateCB("no"),
+    SimpleProgressBarCB(step=1),
+    LivePlotCB(128, plot_keys = ("4plotsplot01","10metrics01"),path_keys=("4plotspath250",)),
+    PrintSummaryCB(),
+    PlotSummaryCB(),
     ]
 
 _CBMETRICS = lambda: [
-    Metric_Loss(),
-    Metric_Accuracy(True, True, False, step=8),
-    MONAI_IoU(11, True, True, step=8),
-    Torcheval_Precision(11, True, True, step=8),
-    Torcheval_Recall(11, True, True, step=8),
-    Torcheval_Dice(11, True, True, step=8),
-    Torcheval_AURPC(11, True, step=8),
-    Torcheval_AUROC(11, True, step=8),
-    Log_Time(),
+    LogLossCB(),
+    MetricAccuracyCB(True, True, False, step=8),
+    MONAIIoUCB(11, True, True, step=8),
+    TorchevalPrecisionCB(11, True, True, step=8),
+    TorchevalRecallCB(11, True, True, step=8),
+    TorchevalF1CB(11, True, True, step=8),
+    TorchevalAURPCCB(11, True, step=8),
+    TorchevalRocAucCB(11, True, step=8),
+    LogTimeCB(),
     #Log_LR(),
     ]
 
@@ -34,11 +34,11 @@ _CBUPDATEMETRICS = lambda: [
     # Log_GradUpdateAngle(16),
     # Log_LastGradsAngle(16),
     # Log_GradPath(1),
-    Log_UpdateDist(16),
-    Log_LastUpdatesAngle(16),
-    Log_ParamDist(16),
-    Log_ParamPath(1),
-    Log_UpdatePath(1),
+    LogUpdateDistCB(16),
+    LogLastUpdatesAngleCB(16),
+    LogParamDistCB(16),
+    LogParamsPathCB(1),
+    LogUpdatePathCB(1),
     ]
 
 def CALLBACKS(extra = ()):

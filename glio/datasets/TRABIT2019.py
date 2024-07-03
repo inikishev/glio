@@ -3,7 +3,7 @@
 
 import torch
 from torchvision.transforms import v2
-from ..data.old import Dataset_Label
+from ..data import DSRegression
 from ..loaders import nifti
 import csv, functools
 
@@ -23,26 +23,26 @@ def load_train(path = r'D:\datasets\trabit2019-imaging-biomarkers',
          transforms = None,
          label_fn = age_norm_z
          ):
-    ds = Dataset_Label(loader = loader, transform=transforms, label_encoding='float')
+    ds = DSRegression()
     with open(f'{path}/train.csv', 'r') as f:
         reader = csv.reader(f)
         for row in reader:
             if row[0] == 'scan_id': continue
-            ds.add_file(f'{path}/train/{row[2]}', label_fn = label_fn(float(row[1])))
+            ds.add_sample(f'{path}/train/{row[2]}', loader = loader, transform=transforms, target = label_fn(float(row[1])))
     return ds
 
 def load_test(path = r'D:\datasets\trabit2019-imaging-biomarkers',
          loader = [nifti.niiread, functools.partial(torch.squeeze, dim = 3), functools.partial(torch.unsqueeze, dim = 0), v2.Normalize(mean, std)],
          transforms = None,
          ):
-    ds = Dataset_Label(loader = loader, transform=transforms, label_encoding='float')
+    ds = DSRegression()
 
     with open(f'{path}/test_sample_submission.csv', 'r') as f:
         reader = list(csv.reader(f))
         for i, row in enumerate(reader):
             if row[0] == 'scan_id': continue
             filepath = f'{path}/test/mri_{row[0].rjust(8, "0")}.nii'
-            ds.add_file(filepath)
+            ds.add_sample(filepath, loader = loader, transform=transforms)
     return ds
 
 def age_unnorm_z(x):

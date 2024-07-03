@@ -4,7 +4,10 @@ from ..design.EventModel import CBEvent
 from ..python_tools import type_str
 from .Learner import Learner
 
-class Accelerate(CBEvent):
+__all__ = [
+    'AccelerateCB'
+]
+class AccelerateCB(CBEvent):
     """https://huggingface.co/docs/accelerate/en/index"""
     order = 10
     event = "before_fit"

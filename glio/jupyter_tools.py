@@ -67,7 +67,7 @@ def markdown_if_jupyter(string):
     else: return string
 
 def show_slices(sliceable):
-    from .visualize import vis_imshow
+    from .plot import qimshow
     from .python_tools import shape, ndims
     from ipywidgets import interact
 
@@ -78,12 +78,12 @@ def show_slices(sliceable):
         view = sliceable
         for v in list(kwargs.values())[:-1] if color else kwargs.values():
             view = view[v]
-        vis_imshow(view, cmap="gray")
+        qimshow(view, cmap="gray")
         return dict(**stats, view_shape=view.shape, view_min = view.min(), view_max = view.max())
     return interact(f, color=False, **kwargs)
 
 def show_slices_arr(sliceable):
-    from .visualize import vis_imshow
+    from .plot import qimshow
     from ipywidgets import interact
     import numpy as np
     if hasattr(sliceable, "detach"): sliceable = sliceable.detach().cpu()
@@ -97,7 +97,7 @@ def show_slices_arr(sliceable):
         view = np.transpose(sliceable, [int(i) for i in permute.split(" ")])
         for v in list(kwargs.values())[:-1] if color else kwargs.values():
             view = view[v]
-        vis_imshow(view, cmap="gray")
+        qimshow(view, cmap="gray")
         return dict(**stats, view_shape=view.shape)
     return interact(f, permute=permute,color=False, **kwargs)
 

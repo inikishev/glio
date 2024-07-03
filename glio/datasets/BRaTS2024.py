@@ -103,7 +103,7 @@ class Preprocessor:
 
         # create a stack of modalities + seg for cropping
         if seg is not None: stacked = torch.stack(imgs + [seg], dim=0)  # 5, 155, 240, 240 #type:ignore
-        else: stacked = torch.stack(imgs, dim=0)  # 4, 155, 240, 240
+        else: stacked = torch.stack(imgs, dim=0)  # 4, 155, 240, 240 # type:ignore
 
         # crop foreground by selecting values above 0.5, as all images are normalized to 0-1 range
         if self.crop is not None:

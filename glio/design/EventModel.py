@@ -11,6 +11,16 @@ import bisect
 
 from ..python_tools import type_str, get__name__
 
+__all__ = [
+    "Cancel",
+    "Callback",
+    "CBEvent",
+    "CBMethod",
+    "CBCond",
+    "CBContext",
+    "EventModel",
+    "EventModelWithPerformanceDebugging"
+]
 class Cancel(Exception): pass
 
 def _raise_not_implemented(self, *args, **kwargs):
@@ -370,7 +380,7 @@ class Event_DebugPerformance(Event):
             else: self.cbs_time[n].append(time_took)
         return res
 
-class EventModel_DebugPerformance(EventModel, ABC):
+class EventModelWithPerformanceDebugging(EventModel, ABC):
     def __init__(self, cbs: Optional[Iterable[Callback]], default_cbs: Optional[Iterable[Callback]] = None):
         super().__init__(cbs, default_cbs)
         self.events_time : dict[str, list[float]] = {}

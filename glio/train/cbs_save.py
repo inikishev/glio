@@ -5,7 +5,11 @@ from ..design.EventModel import CBCond, CBEvent
 from .Learner import Learner
 from ..python_tools import int_at_beginning
 
-class Save_Best(CBEvent):
+__all__ = [
+    "SaveBestCB",
+    "SaveLastCB",
+]
+class SaveBestCB(CBEvent):
     event = "after_test_epoch"
     def __init__(
         self,
@@ -65,7 +69,7 @@ class Save_Best(CBEvent):
                         self.best_paths[met] = checkpoint_path
                         is_already_saved = True
 
-class Save_Last(CBEvent):
+class SaveLastCB(CBEvent):
     event = "after_fit"
     def __init__(self, dir = "checkpoints", serialize=False): #pylint:disable=W0102
         super().__init__()

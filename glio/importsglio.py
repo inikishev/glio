@@ -20,14 +20,16 @@ from .python_tools import (
     perf_counter_context,
     find_file_containing,
 )
-from . import plt_colormaps as _plt_colormaps
-
-from .train2 import *
+from .train import *
 from .plot import *
 from .progress_bar import PBar
 from .data import DSClassification, DSRegression, DSBasic, DSToTarget
 
 from . import nn as gnn
-from .nn import ConvBlock, ConvTransposeBlock
-from .helpers import cnn_output_size, tcnn_output_size
-from .transforms import norm_to01, norm_to11, z_normalize, z_normalize_channels, fUnNormalize, norm_torange
+from .helpers import conv_outsize, convtranpose_outsize
+from .transforms.intensity import norm, znorm, znormch, unnomalizech
+
+from torchzero.nn.quick import *
+from torchzero.nn.layers.conv import *
+from torchzero.nn.layers.linear import *
+from torchzero.nn.cubes import *

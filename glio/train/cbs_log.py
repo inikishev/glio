@@ -4,8 +4,16 @@ from ..design.EventModel import CBCond
 from .Learner import Learner
 from ..torch_tools import get_lr
 
+__all__ = [
+    "LogPredsCB",
+    "LogPredsAndTargetsCB",
+    "SavePredsToThisCB",
+    "SavePredsToLearnerCB",
+    "LogTimeCB",
+    "LogLRCB",
+]
 
-class Log_PredsTo(CBCond):
+class SavePredsToThisCB(CBCond):
     """Logs predictions to `preds`."""
     default_events = (("after_train_batch", None),)
     def __init__(self, inputs=None, preds=None, targets=None, log_inputs=False, log_preds=True, log_targets=False):
@@ -31,7 +39,7 @@ class Log_PredsTo(CBCond):
         if self.log_targets: self.targets.append(learner.targets)
 
 
-class Write_Preds(CBCond):
+class SavePredsToLearnerCB(CBCond):
     """Logs predictions to learner attributes `train_preds_log`, 'test_preds_log`"""
     default_events = [("after_batch", None),]
     def enter(self, learner: Learner):
@@ -41,21 +49,21 @@ class Write_Preds(CBCond):
         if learner.status == "train": learner.train_preds_log.append([learner.preds, learner.targets]) # type:ignore
         elif learner.status == "test": learner.test_preds_log.append([learner.preds, learner.targets]) # type:ignore
 
-class Log_Preds(CBCond):
+class LogPredsCB(CBCond):
     """Logs preds into logger, keys: `train preds`, `real preds`"""
     default_events = [("after_train_batch", None),]
     def __call__(self, learner: Learner):
         learner.log(f"{learner.status} preds / targets", [learner.preds, learner.targets])
 
 
-class Log_PredsSep(CBCond):
+class LogPredsAndTargetsCB(CBCond):
     """Logs inputs and preds into logger, keys: `train preds`, `test preds`, `train targets`, `test targets`"""
     default_events = [("after_train_batch", None),]
     def __call__(self, learner: Learner):
         learner.log(f"{learner.status} preds", learner.preds)
         learner.log(f"{learner.status} targets", learner.targets)
 
-class Log_Time(CBCond):
+class LogTimeCB(CBCond):
     default_events = [("after_train_batch", None),]
     def enter(self, learner:Learner):
         self.start = perf_counter()
@@ -63,7 +71,7 @@ class Log_Time(CBCond):
     def __call__(self, learner: Learner):
         learner.log("time", perf_counter() - self.start)
 
-class Log_LR(CBCond):
+class LogLRCB(CBCond):
     default_events = [("after_train_batch", None),]
     def __call__(self, learner: Learner):
         learner.log("lr", get_lr(learner.optimizer)) # type:ignore

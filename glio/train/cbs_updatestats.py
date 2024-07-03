@@ -6,7 +6,19 @@ from .Learner import Learner
 from ..torch_tools import angle, seeded_rng, stepchunk
 from ..random import randperm
 
-class Log_ParamDist(CBMethod):
+__all__ = [
+    "LogParamDistCB",
+    "LogUpdateDistCB",
+    "LogGradDistCB",
+    "LogGradUpdateAngleCB",
+    "LogLastGradsAngleCB",
+    "LogLastUpdatesAngleCB",
+    "LogParamsPathCB",
+    "LogGradPathCB",
+    "LogUpdatePathCB",
+    
+]
+class LogParamDistCB(CBMethod):
     def __init__(self, step: int = 1, mean = True, std = False, var = True, min = True, max = True, argmin=False, argmax=False, median = False):#pylint:disable=W0622,W0621
         super().__init__()
         self.step = step
@@ -30,7 +42,7 @@ class Log_ParamDist(CBMethod):
         return self.params
 
 
-class Log_UpdateDist(CBMethod):
+class LogUpdateDistCB(CBMethod):
     def __init__(self, step: int = 1, mean = False, std = False, var = True, min = False, max = False, argmin=False, argmax=False, median = False, angle=True, cosine=False):#pylint:disable=W0622,W0621
         super().__init__()
         self.step = step
@@ -59,7 +71,7 @@ class Log_UpdateDist(CBMethod):
         """This method will become available in Learner so that other callbacks can use it."""
         return self.update
 
-class Log_GradDist(CBMethod):
+class LogGradDistCB(CBMethod):
     def __init__(self, step: int = 1, mean = False, std = True, var = False, min = False, max = False, argmin=False, argmax=False, median = False, ):#pylint:disable=W0622
         super().__init__()
         self.step = step
@@ -83,7 +95,7 @@ class Log_GradDist(CBMethod):
         """This method will become available in Learner so that other callbacks can use it."""
         return self.grad
 
-class Log_GradUpdateAngle(CBMethod):
+class LogGradUpdateAngleCB(CBMethod):
     order = 10
     def __init__(self, step, mean = True, std = False, var = False, min = False, max = False, argmin=False, argmax=False, median = False, angle = True, cosine = False): #pylint:disable=W0621,W0622
         super().__init__()
@@ -106,7 +118,7 @@ class Log_GradUpdateAngle(CBMethod):
             if self.angle: learner.log('grad-update angle', angle(update, grad))
             if self.cosine: learner.log('grad-update cosine', torch.nn.functional.cosine_similarity(update, grad, dim=0)) # pylint:disable=E1102
 
-class Log_LastGradsAngle(CBMethod):
+class LogLastGradsAngleCB(CBMethod):
     def __init__(self, step, mean = True, std = False, var = False, min = False, max = False, argmin=False, argmax=False, median = False, angle = False, cosine = False): #pylint:disable=W0621,W0622
         super().__init__()
         self.step = step
@@ -132,7 +144,7 @@ class Log_LastGradsAngle(CBMethod):
             if self.angle: learner.log('last grads angle', angle(self.prev_grad, grad))
             if self.cosine: learner.log('last grads cosine', torch.nn.functional.cosine_similarity(self.prev_grad, grad, dim=0)) # pylint:disable=E1102
 
-class Log_LastUpdatesAngle(CBMethod):
+class LogLastUpdatesAngleCB(CBMethod):
     order = 10
     def __init__(self, step, mean = False, std = True, var = False, min = False, max = False, argmin=False, argmax=False, median = False, angle = False, cosine = False): #pylint:disable=W0621,W0622
         super().__init__()
@@ -162,7 +174,7 @@ class Log_LastUpdatesAngle(CBMethod):
             if self.angle: learner.log('last updates angle', angle(self.prev_update, new_update))
             if self.cosine: learner.log('last updates cosine', torch.nn.functional.cosine_similarity(self.prev_update, new_update, dim=0)) # pylint:disable=E1102
 
-class Log_ParamPath(CBMethod):
+class LogParamsPathCB(CBMethod):
     #order = 10
     def __init__(self, step, ngroups = 10, mean=True, l1=False, l2=False, median=False, maxparams=100_000, mode='rand', det = True):
         """Mode: `rand` / `step` / `chunk` / `chunkstep`."""
@@ -201,7 +213,7 @@ class Log_ParamPath(CBMethod):
             if self.l2: learner.log('param path L2', [torch.linalg.vector_norm(g, ord=2).detach().cpu() for g in param_groups]) # pylint:disable=E1102
             if self.median: learner.log('param path median', [g.median().detach().cpu() for g in param_groups]) # type:ignore
 
-class Log_GradPath(CBMethod):
+class LogGradPathCB(CBMethod):
     def __init__(self, step, ngroups = 2, mean=True, l1=False, l2=False, median=False, maxparams=100_000,  det = True):
         super().__init__()
         self.step = step
@@ -226,7 +238,7 @@ class Log_GradPath(CBMethod):
             if self.l2: learner.log('grad path L2', [torch.linalg.vector_norm(g, ord=2).detach().cpu() for g in grad_groups]) # pylint:disable=E1102
             if self.median: learner.log('grad path median', [g.median().detach().cpu() for g in grad_groups])
 
-class Log_UpdatePath(CBMethod):
+class LogUpdatePathCB(CBMethod):
     order = 10
     def __init__(self, step, ngroups = 2, mean=True, l1=False, l2=False, median=False, maxparams=100_000,  det=True):
         super().__init__()

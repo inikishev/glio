@@ -165,12 +165,12 @@ class DistributionLabeled:
         import altair as alt
         return alt.Chart(self.df).mark_point().encode(x=features[0], y=features[1], color=self.class_col).interactive()#type:ignore
 
-    def px_scatter(self, features: list[str] = None, **kwargs):
-        if features is None: features = self.features[:2]
-        if len(features) != 2: raise ValueError("Must specify two features to plot.")
+    # def px_scatter(self, features: list[str] = None, **kwargs):
+    #     if features is None: features = self.features[:2]
+    #     if len(features) != 2: raise ValueError("Must specify two features to plot.")
 
-        import plotly.express as px
-        return px.scatter(self.df, x=self.get_feature_col_index(features[0]), y=self.get_feature_col_index(features[1]), color=0, **kwargs)
+    #     import plotly.express as px
+    #     return px.scatter(self.df, x=self.get_feature_col_index(features[0]), y=self.get_feature_col_index(features[1]), color=0, **kwargs)
 
     def scatter(self, features: list[str] = None, encode_classes = True):
         """Returns [cols], classes"""

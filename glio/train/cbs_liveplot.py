@@ -7,7 +7,13 @@ from .Learner import Learner
 from ..plot import Figure, LiveFigure
 from ._liveplot_shortcuts import _SHORTCUTS
 
-class LivePlot(CBMethod):
+__all__ = [
+    "LivePlotCB",
+    "LivePlot2CB",
+    "PlotSummaryCB",
+]
+
+class LivePlotCB(CBMethod):
     order = 95
     def __init__(  # pylint:disable = W0102
         self,
@@ -78,7 +84,7 @@ class LivePlot(CBMethod):
 
 
 
-class LivePlot2(CBMethod):
+class LivePlot2CB(CBMethod):
     order = 95
     def __init__(  # pylint:disable = W0102
         self,
@@ -112,7 +118,7 @@ class LivePlot2(CBMethod):
 
 
 
-class PlotSummary(CBMethod):
+class PlotSummaryCB(CBMethod):
     def __init__(self, figsize=8, nrow = None, ncol=2, save=True, show=False, path = '.', save_ext='png'):
         self.figsize = figsize
         self.nrow, self.ncol = nrow, ncol

@@ -3,8 +3,11 @@ import torch
 from ..design.EventModel import CBEvent
 from .Learner import Learner
 
+__all__ = [
+    "PrintSummaryCB",
+]
 
-class Summary(CBEvent):
+class PrintSummaryCB(CBEvent):
     event = "after_fit"
     order = -10
     def __init__(self, metrics = None):

@@ -5,7 +5,11 @@ from .Learner import Learner
 from ..torch_tools import get_lr, set_lr as set_lr_, change_lr, copy_state_dict, ensure_float
 from ..python_tools import EndlessContinuingIterator
 
-class LRFinderPriming(CBCond):
+__all__ = [
+    "LRFinderPrimingOnCondCB",
+    "IterativelyFindAndSetBestLROnCondCB",
+]
+class LRFinderPrimingOnCondCB(CBCond):
     def __init__(
         self,
         dl,
@@ -72,7 +76,7 @@ class LRFinderPriming(CBCond):
             avg_losses = [sum(i)/len(i) for i in avg_losses]
             learner.log("lr finder losses", avg_losses)
 
-class IterLR(CBCond):
+class IterativelyFindAndSetBestLROnCondCB(CBCond):
     def __init__(self, lrs = (0.5, 1, 1.5)):
         super().__init__()
         self.lrs = lrs

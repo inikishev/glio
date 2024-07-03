@@ -39,7 +39,7 @@ def niiread_sitk(path):
 def niiread_nib(path):
     return np.asanyarray(nib.load(path).dataobj) # type:ignore
 
-def niiread_ants(path):
-    import ants
-    return ants.image_read(path, pixeltype='float').numpy()
+# def niiread_ants(path):
+#     import ants
+#     return ants.image_read(path, pixeltype='float').numpy()
 

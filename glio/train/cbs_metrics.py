@@ -10,6 +10,13 @@ from ..python_tools import type_str, get__name__
 from torchzero.metrics.dice import dice
 from torchzero.metrics.iou import iou
 
+__all__ = [
+    "CBMetric",
+    "LogLossCB",
+    "LogLearnerFnCB",
+    "LogPredsTargetsFnCB",
+    "MetricAccuracyCB",
+]
 class CBMetric(Callback, ABC):
     metric:str
 
@@ -56,7 +63,7 @@ class CBMetric(Callback, ABC):
             learner.attach_default(event =  "after_test_epoch", fn = self.epoch, cond = self.test_cond, name = get__name__(self), ID = id(self))
 
 
-class Metric_Loss(CBMetric):
+class LogLossCB(CBMetric):
     """loss"""
     metric = "loss"
     def __init__(self):
@@ -65,7 +72,7 @@ class Metric_Loss(CBMetric):
         if isinstance(learner.loss, torch.Tensor): return float(learner.loss.detach().cpu())
         return learner.loss
 
-class Metric_LearnerFn(CBMetric):
+class LogLearnerFnCB(CBMetric):
     """called as: `fn(learner: Learner)`"""
     def __init__(self, fn:Callable[[Learner], Any], train=True, test=True, step=1, name=None):
         super().__init__(train = train, test = test, aggregate_func = np.mean, train_cond=None if step<=1 else lambda _,i: i%step==0)
@@ -77,7 +84,7 @@ class Metric_LearnerFn(CBMetric):
         metric = self.fn(learner)
         if isinstance(metric, torch.Tensor): return float(metric.detach().cpu())
         return metric
-class Metric_PredsTargetsFn(CBMetric):
+class LogPredsTargetsFnCB(CBMetric):
     """called as: `fn(preds, targets)`"""
     def __init__(self, fn:Callable[[Any, Any], Any], train=True, test=True,  step=1, name=None):
         super().__init__(train = train, test = test, aggregate_func = np.mean, train_cond=None if step<=1 else lambda _,i: i%step==0)
@@ -89,7 +96,7 @@ class Metric_PredsTargetsFn(CBMetric):
         metric = self.fn(learner.preds.detach(), learner.targets.detach())
         if isinstance(metric, torch.Tensor): return float(metric.detach().cpu())
         return metric
-class Metric_Accuracy(CBMetric):
+class MetricAccuracyCB(CBMetric):
     """accuracy"""
     def __init__(self, argmax_preds = True, argmax_targets = False, ignore_bg = False, step=1, name='accuracy'):
         super().__init__(train = True, test = True, aggregate_func = np.mean)

@@ -9,44 +9,44 @@ import statistics
 import torch, torch.utils.data
 import numpy as np
 
-from ..design.EventModel import EventModel, EventModel_DebugPerformance, Callback, CBCond, CBContext, CBEvent, CBMethod
+from ..design.EventModel import EventModel, EventModelWithPerformanceDebugging, Callback, CBCond, CBContext, CBEvent, CBMethod
 from ..logger import Logger
 from ..torch_tools import CUDA_IF_AVAILABLE, ensure_device, copy_state_dict
 from ..python_tools import SupportsIter, try_copy, type_str, get__name__, int_at_beginning
 
 from .cbs_default import (
-    Default_Forward,
-    Default_GetLoss,
-    Default_Backward,
-    Default_OptimizerStep,
-    Default_ZeroGrad,
-    Default_SchedulerStep,
-    Default_Train,
-    Default_Eval,
-    Default_OneBatch,
-    Default_Inference,
-    Default_OneEpoch,
-    Default_Fit,
-    Default_Log,
+    DefaultForwardCB,
+    DefaultGetLossCB,
+    DefaultBackwardCB,
+    DefaultOptimizerStepCB,
+    DefaultZeroGradCB,
+    DefaultSchedulerStepCB,
+    DefaultTrainCB,
+    DefaultEvalCB,
+    DefaultOneBatchCB,
+    DefaultInferenceCB,
+    DefaultOneEpochCB,
+    DefaultFitCB,
+    DefaultLogCB,
 )
 
 if TYPE_CHECKING:
     from accelerate import Accelerator
 
 DEFAULT_CBS = (
-    Default_Forward(),
-    Default_GetLoss(),
-    Default_Backward(),
-    Default_OptimizerStep(),
-    Default_ZeroGrad(),
-    Default_SchedulerStep(),
-    Default_Train(),
-    Default_Eval(),
-    Default_OneBatch(),
-    Default_Inference(),
-    Default_OneEpoch(),
-    Default_Fit(),
-    Default_Log(),
+    DefaultForwardCB(),
+    DefaultGetLossCB(),
+    DefaultBackwardCB(),
+    DefaultOptimizerStepCB(),
+    DefaultZeroGradCB(),
+    DefaultSchedulerStepCB(),
+    DefaultTrainCB(),
+    DefaultEvalCB(),
+    DefaultOneBatchCB(),
+    DefaultInferenceCB(),
+    DefaultOneEpochCB(),
+    DefaultFitCB(),
+    DefaultLogCB(),
 )
 
 def _serialize_joblib_compress(fname, obj,):
@@ -654,4 +654,4 @@ callbacks:
         if not os.path.exists(checkpoint_path): os.mkdir(checkpoint_path)
         return os.path.join(checkpoint_path)
 
-class Learner_DebugPerformance(Learner, EventModel_DebugPerformance): pass
+class Learner_DebugPerformance(Learner, EventModelWithPerformanceDebugging): pass
