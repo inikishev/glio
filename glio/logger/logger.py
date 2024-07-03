@@ -1,13 +1,10 @@
-"""Логгирование"""
-# Автор - Никишев Иван Олегович группа 224-31
-
+"""Logging"""
+from collections.abc import Callable, Sequence
 from typing import Any, Optional
 import logging
 import matplotlib.pyplot as plt, numpy as np, torch
-from ..visualize import datashow
+from ..plot import qimshow, qimshow_grid, Figure, qpath2d
 from ..python_tools import flexible_filter
-from ..torch_tools import smart_detach_cpu
-from ..plot import *
 
 class Logger:
     def __init__(self):
@@ -26,37 +23,98 @@ class Logger:
 
     def __contains__(self, key): return key in self.logs
 
-    def has_substring(self, key):
-        """Возвращает True если в ключах есть подстрока key"""
-        return any(key in k for k in self.logs)
+    def has_substring(self, substring):
+        """Returns `True` if at least one key has `substring` substring.
 
-    def __call__(self, key): return list(self[key].keys()), list(self[key].values())
+        Args:
+            substring (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        return any(substring in key for key in self.logs)
+
+    def __call__(self, key): 
+        """Returns a list of keys and values for the given key.
+
+        Args:
+            key (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        return list(self[key].keys()), list(self[key].values())
 
     def add(self, metric, value, cur_batch):
-        """Добавляет значение значение `value` метрики `metric` под текущим пакетом `cur_batch`"""
+        """Log a metric.
+
+        Args:
+            metric (_type_): _description_
+            value (_type_): _description_
+            cur_batch (_type_): _description_
+        """
         if isinstance(value, torch.Tensor): value = value.detach().cpu()
         if metric not in self.logs: self.logs[metric] = {cur_batch: value}
         else: self.logs[metric][cur_batch] = value
 
     def set(self, metric, value, cur_batch=0):
-        """Устанавливает значение `value` в метрику `metric`. Полезно, когда нужно сохранять только последнее значение."""
+        """Sets a metric under a given batch. Also useful for logging stuff that you only need the last value of.
+
+        Args:
+            metric (_type_): _description_
+            value (_type_): _description_
+            cur_batch (int, optional): _description_. Defaults to 0.
+        """
         self.logs[metric][cur_batch] = value
 
     def keys(self): return self.logs.keys()
     def values(self): return self.logs.values()
     def items(self): return self.logs.items()
 
-    def clear(self): self.logs = {}
+    def clear(self): 
+        """Removes all data from the logger.
+        """
+        self.logs = {}
 
-    def toarray(self, key): return np.array(list(self.logs[key].values()), copy = False)
-    def tolist(self, key): return list(self.logs[key].values())
+    def toarray(self, key): 
+        """Returns an array of values.
+
+        Args:
+            key (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        return np.array(list(self.logs[key].values()), copy = False)
+    def tolist(self, key): 
+        """Returns a list of values.
+
+        Args:
+            key (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        return list(self.logs[key].values())
     def totensor(self, key):
+        """Returns a torch.Tensor of values.
+
+        Args:
+            key (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         if isinstance(self.last(key), (int,float,np.ScalarType)): return torch.as_tensor(list(self.logs[key].values()))
         elif isinstance(self.last(key), (list,tuple)): return torch.as_tensor(self.toarray(key))
         return torch.from_numpy(np.asanyarray(list(self.logs[key].values())))
 
     def get_keys_num(self):
-        """Возвращает список ключей c числовыми значениями"""
+        """Returns number of items in the logger with scalar last value.
+
+        Returns:
+            _type_: _description_
+        """
         keys = []
         for k,v in self.logs.items():
             if len(v) > 0:
@@ -65,7 +123,11 @@ class Logger:
         return keys
 
     def get_keys_vec(self):
-        """Возвращает список ключей c векторными значениями"""
+        """Returns number of items in the logger with vector (1D) last value.
+
+        Returns:
+            _type_: _description_
+        """
         keys = []
         for k,v in self.logs.items():
             if len(v) > 0:
@@ -74,7 +136,11 @@ class Logger:
         return keys
 
     def get_keys_img(self):
-        """Возвращает список ключей со значениями, соответствующими массивам второго или третьего ранга"""
+        """Returns number of items in the logger with 2D or 3D array as the last value.
+
+        Returns:
+            _type_: _description_
+        """
         keys = []
         for k, v in self.logs.items():
             if len(v) > 0:
@@ -83,51 +149,95 @@ class Logger:
         return keys
 
     def max(self, key):
-        """Возвращает максимальное значение метрики под ключём `key`"""
+        """Returns max value of the `key` metric.
+
+        Args:
+            key (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         return max(self.tolist(key)) # pyright:ignore
     def min(self, key):
-        """Возвращает минимальное значение метрики под ключём `key`"""
+        """Returns min value of the `key` metric.
+
+        Args:
+            key (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         return min(self.tolist(key)) # pyright:ignore
 
     def last(self, key):
-        """Возвращает последнее значение метрики под ключём `key`"""
+        """Returns last recorded value of the `key` metric.
+
+        Args:
+            key (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         return self.tolist(key)[-1]
 
     def stats_str(self, key):
+        """Makes a string like:
+        ```txt
+        train loss: last=0.023, min=0.023, max=1.579"
+        ```
+
+        Args:
+            key (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         return f"{key}: last={self.last(key):.3f}, min={self.min(key):.3f}, max={self.max(key):.3f}"
 
-    def plot(self, *args, show=False, **kwargs):
-        """Строит график метрик по списку их ключей."""
-        for m in args: plt.plot(*self(m), label = m, **kwargs) # pyright:ignore
-        plt.legend()
+    def plot(self, *args, show=False, figsize = None, **kwargs):
+        """Plot all metrics passed as args.
 
-    def plot_all(self, *filters, show=False):
-        """Строит график метрик по списку их подстрок ключей"""
+        Args:
+            show (bool, optional): _description_. Defaults to False.
+        """
+        f = Figure()
+        f.add()
+        for m in args: f.get().linechart(*self(m), label = m, **kwargs) # pyright:ignore
+        f.get().style_chart()
+        if show: f.show(figsize=figsize)
+        else: f.create(figsize=figsize)
+
+    def plot_all(self, *filters, figsize = None, show=False):
+        """Plot all metrics using filters passed as args.
+
+        Args:
+            show (bool, optional): _description_. Defaults to False.
+        """
         keys = flexible_filter(self.get_keys_num(), filters)
         keys.sort(key = lambda x: len(self[x]), reverse=True)
-        for key in keys: plt.plot(*self(key), label=key) # pyright:ignore
-        plt.legend(prop={'size': 6})
-        if show: plt.show()
+        f = Figure()
+        f.add()
+        for key in keys: f.get().plot(*self(key), label=key) # pyright:ignore
+        f.get().style_chart()
+        if show: f.show(figsize=figsize)
+        else: f.create(figsize=figsize)
 
-    def imshow(self, key, fit = True, to_square = True, show=False):
-        datashow(self.toarray(key), title = key, fit = fit)
-        if show: plt.show()
+    def imshow(self, key, figsize = None, show=False):
+        qimshow(self.toarray(key), title = key, figsize=figsize, show=show)
 
-    def imshow_all(self, *filters, fit = True, to_square = True, show=False):
+    def imshow_all(self, *filters, figsize = None, show=False):
         keys = flexible_filter(self.get_keys_img(), filters)
-        datashow([self.toarray(key) for key in keys], title = ', '.join([str(i) for i in filters]), fit = fit)
-        if show: plt.show()
+        qimshow_grid([self.toarray(key) for key in keys], title = ', '.join([str(i) for i in filters]), figsize=figsize, show=show)
 
-    def hist(self, key, show=False):
+    def hist(self, key, figsize = None, show=False):
         hist = torch.stack(self.totensor(key)).log1p().T.flip(0) # pyright:ignore
-        datashow(hist, title=key, fit = True, resize=(256,512), max_size=2048) # pyright:ignore
-        if show: plt.show()
+        qimshow(hist, title=key, figsize=figsize, show=show) # pyright:ignore
 
     def hist_all(self, *filters, figsize = (12, 5), show=False):
         keys = flexible_filter(self.get_keys_vec(), filters)
         hists = [torch.stack(self.tolist(key)).log1p().T.flip(0) for key in keys] # pyright:ignore
         if len(hists) == 0: raise ValueError(f'No data found for {", ".join(filters)}')
-        datashow(hists,  labels = keys, title = ', '.join([str(i) for i in filters]), fit = True, resize=(256,512), figsize=figsize, interpolation='nearest') # pyright:ignore
+        qimshow_grid(hists,  labels = keys, title = ', '.join([str(i) for i in filters]), figsize=figsize, show=show) # pyright:ignore
         if show: plt.show()
 
     def path2d(self, key, s=None, c=None, cmap: Optional[str]|Any = "gnuplot2", linecolor:Optional[str] = 'black', figsize=None, det=False, ax=None, show=False, **kwargs):
@@ -138,8 +248,8 @@ class Logger:
         path = self.toarray(key)
         fig = Figure()
         fig.add().path10d(path, label=key).style_chart()
-        fig.create()
-        if show: plt.show()
+        if show: fig.show()
+        else: fig.create()
 
     def plot_multiple(self, filters, show=False):
         ...
@@ -150,7 +260,6 @@ class Logger:
             pickle.dump(self, f)
 
     def state_dict(self):
-        """Возвращает словарь массивов torch.Tensor для сериализации. Этот словарь можно загрузить в логгер методами `load_dict` или `logger = Logger.from_dict(d)`."""
         #state_dict = {f"KEYS {k}": torch.as_tensor(self(k)[0]) for k in self.keys()}
         #state_dict.update({f"VALS {k}": self.totensor(k) for k in self.keys()})
         state_dict = {}
@@ -163,7 +272,11 @@ class Logger:
         return state_dict
 
     def save(self, path:str):
-        """Сохраняет логгер, используя сжатый формат .npz. Его потом можно загрузить через `logger = Logger.from_file(path)`"""
+        """Saves logger into a compressed numpy array (npz) file.
+
+        Args:
+            path (str): _description_
+        """
         if not path.endswith(".npz"): logging.warning("%s doesn't end with .npz", path)
         arrays = self.state_dict()
         np.savez_compressed(path, **arrays)
@@ -176,13 +289,24 @@ class Logger:
                 self.logs[name] = dict(zip(keys, values))
 
     def load(self, path:str):
-        """Загружает логгер из сжатого формат .npz, все ключи файла перезапишут соответствующие ключи логгера, если те существуют."""
+        """Loads logger from a compressed numpy array (npz) file.
+
+        Args:
+            path (str): _description_
+        """
         arrays = np.load(path)
         self.load_state_dict(arrays)
 
     @classmethod
     def from_file(cls, path:str):
-        """Загружает логгер из сжатого формат .npz"""
+        """Loads logger from a compressed numpy array (npz) file.
+
+        Args:
+            path (str): _description_
+
+        Returns:
+            _type_: _description_
+        """
         logger:Logger = cls()
         logger.load(path)
         return logger

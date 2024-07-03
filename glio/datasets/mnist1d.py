@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import joblib
-from stuff.found.mnist1d.data import get_dataset, get_dataset_args
+from stuff.found.torch.datasets.mnist1d.data import get_dataset, get_dataset_args
 from ..data import DSClassification, DSToTarget
 from ..torch_tools import CUDA_IF_AVAILABLE
 

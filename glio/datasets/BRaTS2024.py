@@ -6,7 +6,7 @@ import torch, numpy as np
 from monai import transforms as mtf
 import SimpleITK as sitk
 from glio.loaders import niireadtensor
-from glio.transforms import norm_to01, z_normalize_channels
+from glio.transforms.intensity import norm, znorm
 from torchvision.transforms import v2
 
 class BRaTS2024_GoAT:
@@ -43,10 +43,10 @@ def _measure_noise(image):
     """Measures std of the front top left 5% of the image"""
     if image.ndim != 3:
         raise ValueError(f"Image must be 3D, but it is {image.ndim}D")
-    image = norm_to01(image.to(torch.float32))
+    image = norm(image.to(torch.float32))
     shape = image.shape
     corner = image[:int(shape[0]/20), :int(shape[1]/20), :int(shape[2]/20)]
-    return norm_to01(corner).std()
+    return norm(corner).std()
 
 def _is_noisy(image):
     """Measures std of the front top left 5% of the image, returns True if above 0.05"""
@@ -77,7 +77,7 @@ class Preprocessor:
                 zoom_mode = "trilinear",
                 zoom_mode_seg = "nearest-exact",
                 hist_correction = _hist_correction, # type:ignore
-                z_norm = z_normalize_channels,
+                z_norm = znorm,
                 post_img_tfms = None,
                 post_seg_tfms = None,
                  ):
@@ -98,7 +98,7 @@ class Preprocessor:
         if self.hist_correction is None: return_nohist = False
 
         # load all images
-        imgs = [norm_to01(_load_if_needed(m)) for m in imgs]
+        imgs = [norm(_load_if_needed(m)) for m in imgs]
         if seg is not None: seg = _load_if_needed(seg)
 
         # create a stack of modalities + seg for cropping

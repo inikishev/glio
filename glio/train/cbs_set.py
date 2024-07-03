@@ -1,11 +1,12 @@
-"""Присваивание"""
+"""asdnjkhaoldloasdnasiujadklodigsdauhlasdasdaskdbasdbaskhdaskjhdasdhjkbaskdbhaskdhsakdhlasdlasdas."""
 from typing import Callable
 import torch
-from ..design.CallbackModel import Callback
-from .learner import Learner
-class Set_Optimizer(Callback):
+from ..design.EventModel import CBContext
+from .Learner import Learner
+class Set_Optimizer(CBContext):
     """Sets optimizer"""
     def __init__(self, optimizer: torch.optim.Optimizer):
+        super().__init__()
         self.optimizer = optimizer
 
     def enter(self, learner: "Learner"):
@@ -15,9 +16,10 @@ class Set_Optimizer(Callback):
     def exit(self, learner: "Learner"):
         learner.optimizer = self.backup
 
-class Set_LossFn(Callback):
+class Set_LossFn(CBContext):
     """Sets loss function"""
     def __init__(self, loss_fn: Callable):
+        super().__init__()
         self.loss_fn = loss_fn
 
     def enter(self, learner: "Learner"):
@@ -27,9 +29,10 @@ class Set_LossFn(Callback):
     def exit(self, learner: "Learner"):
         learner.loss_fn = self.backup
 
-class Set_Scheduler(Callback):
+class Set_Scheduler(CBContext):
     """Sets scheduler"""
     def __init__(self, scheduler: torch.optim.lr_scheduler.LRScheduler):
+        super().__init__()
         self.scheduler = scheduler
 
     def enter(self, learner: "Learner"):

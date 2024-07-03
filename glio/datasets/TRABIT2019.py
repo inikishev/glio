@@ -1,5 +1,5 @@
-# Автор Никишев И.О.
-# TODO Загрузчик
+"""TRABIT2019"""
+# TODO loader
 
 import torch
 from torchvision.transforms import v2
@@ -7,7 +7,7 @@ from ..data.old import Dataset_Label
 from ..loaders import nifti
 import csv, functools
 
-# Предрассчитанные значения для нормализации
+# norm values
 mean, std = ((234.26439405168807,), (431.60501534598217,))
 age_mean, age_std = 38.9000, 30.0628
 age_min, age_max = 18.0, 96.0

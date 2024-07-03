@@ -8,7 +8,7 @@ _RANO_RATIONALE = "Rating rationale (CRET: complete resection of the enhancing t
 
 class LUMIERE:
     def __init__(self, path = r"E:\dataset\LUMIERE"):
-        # 1. Чтение csv и формирования DataFrame
+        # 1. zzz
         demographics_pathology = pl.read_csv(f"{path}/LUMIERE-Demographics_Pathology.csv", infer_schema_length=10000)
 
 
@@ -56,7 +56,7 @@ class LUMIERE:
             .join(deepbratumia, on=["Patient", "Date"], how="outer_coalesce")
             .join(hdglioauto, on=["Patient", "Date"], how="outer_coalesce"))
 
-        # 2. Аггрегация колонок
+        # 2. zzzzzzz
         d = {}
         for ob in combined.rows(named=True):
             name = f'{ob["Patient"]}/{ob["Date"]}'

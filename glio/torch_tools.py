@@ -1,7 +1,9 @@
-"""Инструменты для PyTorch"""
-from typing import Optional, Sequence, Any, Callable, Iterable
+"""PyTorch tools"""
+from collections.abc import Sequence, Callable, Iterator, Iterable, Generator, Mapping
+from typing import Optional, Any, Literal
 import logging
 from contextlib import contextmanager
+import functools
 import random
 import math
 from types import EllipsisType
@@ -14,35 +16,72 @@ import matplotlib.pyplot as plt
 from .python_tools import type_str, try_copy, EndlessContinuingIterator, Compose, reduce_dim
 CUDA_IF_AVAILABLE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-def to_device(x, device:Optional[torch.device]):
-    "Рекурсивно перемещает `x` или его элементы на `device`, если возможно."
+def ensure_device(x, device:Optional[torch.device]):
+    """Recursively moves x to device, if possible. Note that this can be very slow.
+
+    Args:
+        x (_type_): _description_
+        device (Optional[torch.device]): _description_
+
+    Returns:
+        _type_: _description_
+    """
     if device is None: return x
     if isinstance(x, torch.Tensor): return x.to(device)
-    elif isinstance(x, (list, tuple)): return [to_device(i, device) for i in x]
+    elif isinstance(x, (list, tuple)): return [ensure_device(i, device) for i in x]
     else: return x
 
-def smart_detach(x) -> Any:
-    "Рекурсивно открепляет `x` или его элементы от градиентного дерева и перемещает на ЦПУ."
+def ensure_detach(x) -> Any:
+    """Recursively detaches x, if possible. Note that this can be very slow.
+
+    Args:
+        x (_type_): _description_
+
+    Returns:
+        Any: _description_
+    """
     if isinstance(x, torch.Tensor): return x.detach()
-    elif isinstance(x, (list, tuple)): return [smart_detach(i) for i in x]
+    elif isinstance(x, (list, tuple)): return [ensure_detach(i) for i in x]
     else: return x
 
-def smart_to_cpu(x) -> Any:
-    "Рекурсивно открепляет `x` или его элементы от градиентного дерева и перемещает на ЦПУ."
+def ensure_cpu(x) -> Any:
+    """Recursively moves x to cpu, if possible. Note that this can be very slow.
+
+    Args:
+        x (_type_): _description_
+
+    Returns:
+        Any: _description_
+    """
     if isinstance(x, torch.Tensor): return x.cpu()
-    elif isinstance(x, (list, tuple)): return [smart_to_cpu(i) for i in x]
+    elif isinstance(x, (list, tuple)): return [ensure_cpu(i) for i in x]
     else: return x
 
-def smart_detach_cpu(x) -> Any:
-    "Рекурсивно открепляет `x` или его элементы от градиентного дерева и перемещает на ЦПУ."
+def ensure_detach_cpu(x) -> Any:
+    """Recursively detaches x and moves it to cpu, if possible. Note that this can be very slow.
+
+    Args:
+        x (_type_): _description_
+
+    Returns:
+        Any: _description_
+    """
     if isinstance(x, torch.Tensor): return x.detach().cpu()
-    elif isinstance(x, (list, tuple)): return [smart_detach_cpu(i) for i in x]
+    elif isinstance(x, (list, tuple)): return [ensure_detach_cpu(i) for i in x]
     else: return x
 
-def smart_to_float(x) -> Any:
-    "Рекурсивно переводит `x` или его элементы в тип float."
+def ensure_float(x) -> Any:
+    """Converts x to float if possible. (I need to add numpy scalar arrays)
+
+    Args:
+        x (_type_): _description_
+
+    Returns:
+        Any: _description_
+    """
     if isinstance(x, torch.Tensor) and x.numel() == 1: return float(x.detach().cpu())
-    elif isinstance(x, (list, tuple)): return [smart_to_float(i) for i in x]
+    # TODO: numpy scalar arrays
+    elif isinstance(x, (list, tuple)): return [ensure_float(i) for i in x]
     else: return x
 
 class FreezeModel:
@@ -99,7 +138,7 @@ def summary(model: torch.nn.Module, input: Sequence | torch.Tensor, device:Any =
             if not orig_input:
                 if isinstance(input, torch.Tensor): model(input.to(device))
                 else: model(torch.randn(input, device = device))
-            else: model(to_device(input, device))
+            else: model(ensure_device(input, device))
         print(f"{'path':<45}{'module':<45}{'input size':<25}{'output size':<25}{'params':<10}{'buffers':<10}")
 
         hooks = []
@@ -107,7 +146,7 @@ def summary(model: torch.nn.Module, input: Sequence | torch.Tensor, device:Any =
         if not orig_input:
             if isinstance(input, torch.Tensor): model(input.to(device))
             else: model(torch.randn(input, device = device))
-        else: model(to_device(input, device))
+        else: model(ensure_device(input, device))
     for h in hooks: h.remove()
 
 
@@ -122,8 +161,8 @@ def one_batch(
     train=True,
 ):
 
-    preds = model(to_device(inputs, device))
-    loss = loss_fn(preds, to_device(targets, device))
+    preds = model(ensure_device(inputs, device))
+    loss = loss_fn(preds, ensure_device(targets, device))
     if train:
         optimizer.zero_grad()
         loss.backward()
@@ -157,8 +196,8 @@ class Trainer:
         if train is False: self.model.eval()
         else: self.model.train()
         with nullcontext() if train else torch.no_grad():
-            preds = self.model(to_device(inputs, self.device))
-            loss = self.loss_fn(preds, to_device(targets, self.device))
+            preds = self.model(ensure_device(inputs, self.device))
+            loss = self.loss_fn(preds, ensure_device(targets, self.device))
             if train:
                 self.optimizer.zero_grad()
                 loss.backward()
@@ -229,13 +268,13 @@ def lr_finder_fn(
     lrs = []
     losses = []
     set_lr(optimizer, start)
-    if end is None and max_increase is None: raise ValueError("Укажите хотя-бы один аргумент из `end` или `max_increase`.")
+    if end is None and max_increase is None: raise ValueError("Specify at least one of `end` or `max_increase`.")
     converged = False
     dl_iter = EndlessContinuingIterator(dl)
     while True:
         for inputs, targets in dl_iter:
 
-            loss, _ = one_batch_fn(to_device(inputs,device), to_device(targets,device), train=True)
+            loss, _ = one_batch_fn(ensure_device(inputs,device), ensure_device(targets,device), train=True)
             loss = float(loss.detach().cpu())
             lrs.append(get_lr(optimizer))
             losses.append(loss)
@@ -477,7 +516,7 @@ def replace_layers(model:torch.nn.Module, old:type, new:torch.nn.Module):
             setattr(model, n, new)
 
 def replace_conv(model:torch.nn.Module, old:type, new:type):
-    """Bias всегда True!!!"""
+    """Bias always True!!!"""
     for n, module in model.named_children():
         if len(list(module.children())) > 0:
             ## compound module, go inside it
@@ -489,7 +528,7 @@ def replace_conv(model:torch.nn.Module, old:type, new:type):
                                   module.stride, module.padding, module.dilation, module.groups))
 
 def replace_conv_transpose(model:torch.nn.Module, old:type, new:type):
-    """Bias всегда True!!!"""
+    """Bias always True!!!"""
     for n, module in model.named_children():
         if len(list(module.children())) > 0:
             ## compound module, go inside it
@@ -657,6 +696,7 @@ class CreateIterator:
         self.length = length
     def __len__(self): return self.length
     def __iter__(self): return self.iterable
+
 class MRISlicer:
     def __init__(self, tensor:torch.Tensor, seg:torch.Tensor, num_classes:int, around:int = 1, any_prob:float = 0.05, warn_empty = True):
         if tensor.ndim != 4: raise ValueError(f"`tensor` is {tensor.shape}")
@@ -691,14 +731,33 @@ class MRISlicer:
         self.around = around
         self.any_prob = any_prob
 
-    def set_settings(self, around:int = 1, any_prob:float = 0.05):
-        self.around = around
-        if len(self.x) > 0: self.any_prob = any_prob
+    def set_settings(self, around:Optional[int] = None, any_prob: Optional[float] = None):
+        if around is not None: self.around = around
+        if len(self.x) > 0 and any_prob is not None: self.any_prob = any_prob
 
     def __call__(self):
         # pick a dimension
-        dim = random.choice([0,1,2])
+        dim: Literal[0,1,2] = random.choice([0,1,2])
 
+        # get length
+        if dim == 0: length = self.shape[1]
+        elif dim == 1: length = self.shape[2]
+        else: length = self.shape[3]
+
+        # pick a coord
+        # from segmentation
+        if random.random() > self.any_prob:
+            if dim == 0: coord = random.choice(self.x)
+            elif dim == 1: coord = random.choice(self.y)
+            else: coord = random.choice(self.z)
+
+        else:
+            coord = random.randrange(self.around, length - self.around)
+
+        return self.get_slice(dim, coord)
+
+    def get_slice(self, dim: Literal[0,1,2], coord: int):
+        """Get a slice from given `dim` and `coord`"""
         # get a tensor
         if dim == 0:
             tensor = self.tensor
@@ -713,19 +772,10 @@ class MRISlicer:
             seg = self.seg.swapaxes(0,2)
             length = self.shape[3]
 
-        # pick a coord
-        # from segmentation
-        if random.random() > self.any_prob:
-            if dim == 0: coord = random.choice(self.x)
-            elif dim == 1: coord = random.choice(self.y)
-            else: coord = random.choice(self.z)
+        # check if coord outside of bounds
+        if coord < self.around: coord = self.around
+        elif coord + self.around >= length: coord = length - self.around - 1
 
-            # check if coord outside of bounds
-            if coord < self.around: coord = self.around
-            elif coord + self.around >= length: coord = length - self.around - 1
-
-        else:
-            coord = random.randrange(0 + self.around, length - self.around)
 
         # get slice
         if self.around == 0: return tensor[:, coord], seg[coord]
@@ -733,20 +783,92 @@ class MRISlicer:
         # or get slices around
         return tensor[:, coord - self.around : coord + self.around + 1].flatten(0,1), seg[coord]
 
-    def yield_all_slices(self):
-        for dim in range(3):
-            for coord in range(self.around, self.shape[dim+1] - self.around):
-                if dim == 0:
-                    yield self.tensor[:, coord], self.seg[coord]
-                elif dim == 1:
-                    yield self.tensor[:, :, coord], self.seg[:, coord]
-                else:
-                    yield self.tensor[:, :, :, coord], self.seg[:, :, coord]
+    def get_random_slice(self):
+        """Get a random slice, ignores `any_prob`."""
+        # pick a dimension
+        dim: Literal[0,1,2] = random.choice([0,1,2])
 
-    def _yield_all_seg_slices_iterator(self):
-        for xcoord in self.x: yield self.tensor[:, xcoord], self.seg[xcoord]
-        for ycoord in self.y: yield self.tensor[:, :, ycoord], self.seg[:, ycoord]
-        for zcoord in self.z: yield self.tensor[:, :, :, zcoord], self.seg[:, :, zcoord]
+        # get length
+        if dim == 0: length = self.shape[1]
+        elif dim == 1: length = self.shape[2]
+        else: length = self.shape[3]
 
-    def iter_all_seg_slices(self):
-        return CreateIterator(self._yield_all_seg_slices_iterator(), len(self.x) + len(self.y) + len(self.z))
+        coord = random.randrange(0 + self.around, length - self.around)
+        return self.get_slice(dim, coord)
+
+    def yield_all_seg_slice_callables(self) -> Generator[Callable[[], tuple[torch.Tensor, torch.Tensor]]]:
+        """Yield all slices that have segmentation as partials."""
+        # pick a dimension
+        for dim in (0, 1, 2):
+
+            if dim == 0: coord_list = self.x
+            elif dim == 1: coord_list = self.y
+            else: coord_list = self.z
+
+            for coord in coord_list:
+
+                yield functools.partial(self.get_slice, dim, coord)
+
+    def get_all_seg_slice_callables(self) -> list[Callable[[], tuple[torch.Tensor, torch.Tensor]]]:
+        """Get all slices that have segmentation as partials."""
+        return list(self.yield_all_seg_slice_callables())
+
+    def get_all_seg_slices(self) -> list[tuple[torch.Tensor, torch.Tensor]]:
+        """Get all slices that have segmentation."""
+        return [i() for i in self.get_all_seg_slice_callables()]
+
+    def yield_all_slice_callables(self) -> Generator[Callable[[], tuple[torch.Tensor, torch.Tensor]]]:
+        """Yield all slices, including empty segmentation ones, as partials."""
+        # pick a dimension
+        for dim in (0, 1, 2):
+
+            # get length
+            if dim == 0: length = self.shape[1]
+            elif dim == 1: length = self.shape[2]
+            else: length = self.shape[3]
+
+            for coord in range(self.around, length - self.around):
+
+                yield functools.partial(self.get_slice, dim, coord)
+
+    def get_all_slice_callables(self) -> list[Callable[[], tuple[torch.Tensor, torch.Tensor]]]:
+        """Get all slices that have segmentation as partials."""
+        return list(self.yield_all_slice_callables())
+
+    def get_all_slices(self) -> list[tuple[torch.Tensor, torch.Tensor]]:
+        """Get all slices that have segmentation."""
+        return [i() for i in self.get_all_slice_callables()]
+
+
+    def yield_all_empty_slice_callables(self) -> Generator[Callable[[], tuple[torch.Tensor, torch.Tensor]]]:
+        """Yield all slices, including empty segmentation ones, as partials."""
+        # pick a dimension
+        for dim in (0, 1, 2):
+
+            # get length
+            if dim == 0:
+                coord_list = self.x
+                length = self.shape[1]
+            elif dim == 1:
+                coord_list = self.y
+                length = self.shape[2]
+            else:
+                coord_list = self.z
+                length = self.shape[3]
+            for coord in range(self.around, length - self.around):
+                if coord not in coord_list: yield functools.partial(self.get_slice, dim, coord)
+
+    def get_all_empty_slice_callables(self) -> list[Callable[[], tuple[torch.Tensor, torch.Tensor]]]:
+        """Get all slices that have segmentation as partials."""
+        return list(self.yield_all_empty_slice_callables())
+
+    def get_all_empry_slices(self) -> list[tuple[torch.Tensor, torch.Tensor]]:
+        """Get all slices that have segmentation."""
+        return [i() for i in self.get_all_empty_slice_callables()]
+    
+    def get_non_empty_count(self): return len(self.x) + len(self.y) + len(self.z)
+
+    def get_anyp_random_slice_callables(self):
+        seg_prob = 1 - self.any_prob
+        any_to_seg_ratio = self.any_prob / seg_prob
+        return [self.get_random_slice for i in range(int(self.get_non_empty_count() * any_to_seg_ratio))]

@@ -1,11 +1,11 @@
-"""Свёртка операторами"""
+"""ok"""
 from typing import Any, Optional
 from collections.abc import Callable
 import torch
 import torch.nn.common_types
 from ..python_tools import identity_if_none
 
-class MSEConv(torch.nn.Module):
+class RMSConv(torch.nn.Module):
     def __init__(self,
         in_channels: int,
         out_channels: int,
@@ -89,7 +89,7 @@ class ArctanConv(torch.nn.Module):
         return torch.arctan2(self.act(self.conv_modules[0](x)), self.act(self.conv_modules[1](x)))
 
 
-class MSEConvTranspose(torch.nn.Module):
+class RMSConvTranspose(torch.nn.Module):
     def __init__(self,
         in_channels: int,
         out_channels: int,

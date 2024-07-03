@@ -17,7 +17,7 @@ from ..python_tools import (
     call_if_callable,
     identity_kwargs_if_none,
 )
-from ..visualize.visualize import Visualizer
+from ..plot import Figure
 Composable = Optional[Callable | Sequence[Callable]]
 
 class ExhaustingIteratorDataset(ExhaustingIterator, torch.utils.data.IterableDataset): pass # pylint: disable=W0223
@@ -224,7 +224,7 @@ class DS(ABC, torch.utils.data.Dataset):
         else: raise FileNotFoundError(f"`{path}` doesn't exist")
 
     def preview(self, n:int=4):
-        v=Visualizer()
+        v=Figure()
         for i in range(n):
             sample = self[i]
             arrays = []
@@ -232,7 +232,7 @@ class DS(ABC, torch.utils.data.Dataset):
             for d in sample:
                 if isinstance(d, torch.Tensor): arrays.append(d.float())
                 elif isinstance(d, (str, int, float)): strings.append(str(d))
-            for d in arrays: v.imshow(d, label = f'{i}: {"; ".join(strings)}')
+            for d in arrays: v.add().imshow(d, label = f'{i}: {"; ".join(strings)}')
         v.show(nrows=n)
 
     @final

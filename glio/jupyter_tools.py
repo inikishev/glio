@@ -1,11 +1,13 @@
-"""Инструменты для среды разработки Jupyter"""
-from typing import TYPE_CHECKING
+"""Jupyter stuffs"""
+from typing import TYPE_CHECKING, Optional
+from collections.abc import Sequence
 import sys, gc, traceback, torch
+
 if TYPE_CHECKING:
     def get_ipython(): pass
 
 def clean_ipython_hist():
-    """Источник - """
+    """Source - ... (idk but I found it from fastai)"""
     # Code in this function mainly copied from IPython source
     if  'get_ipython' not in globals(): return
     ip = get_ipython() # type: ignore #pylint:disable=E1111
@@ -18,6 +20,7 @@ def clean_ipython_hist():
     hm.input_hist_parsed[:] = [''] * pc
     hm.input_hist_raw[:] = [''] * pc
     hm._i = hm._ii = hm._iii = hm._i00 =  ''#pylint:disable=W0212
+
 def clean_tb():
     # h/t Piotr Czapla
     if hasattr(sys, 'last_traceback'):
@@ -98,19 +101,9 @@ def show_slices_arr(sliceable):
         return dict(**stats, view_shape=view.shape)
     return interact(f, permute=permute,color=False, **kwargs)
 
-def show_slices_func(func, range_):
-    from .visualize import vis_imshow
-    from .python_tools import shape
-    from ipywidgets import interact
-    vals = list(range(*range_))
-    test = func(vals[0])
-    kwargs = {"n": 0, **{f"s{i}":(0,v-1) for i,v in enumerate(shape(test)[:-2])}}
-    stats = dict(orig_shape = shape(test))
-    def f(color, **kwargs):
-        nonlocal test
-        view = test
-        for v in list(kwargs.values())[:-1] if color else kwargs.values():
-            view = view[v]
-        vis_imshow(view, cmap="gray")
-        return dict(**stats, view_shape=view.shape)
-    return interact(f, color=False, **kwargs)
+
+def sequence_to_table(s:Sequence, keys:Optional[Sequence] = None, keys_from_s = False, transpose=False):
+    from .python_tools import sequence_to_markdown
+    md = sequence_to_markdown(s, keys=keys, keys_from_s=keys_from_s, transpose=transpose)
+    from IPython.display import Markdown, display
+    display(Markdown(md))

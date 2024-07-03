@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Any
 import random
 import torch
@@ -24,6 +25,28 @@ from glio.python_tools import SliceContainer, reduce_dim, Compose
 # BRATS2024SMALL_NOHIST96_TRAIN = rf"{BRATS_PATH}/brats2024-small nohist train.joblib"
 # BRATS2024SMALL_NOHIST96_TEST = rf"{BRATS_PATH}/brats2024-small nohist test.joblib"
 
+__all__ = [
+    "RHUH_TRAIN",
+    "RHUH_TEST",
+    "BRATSGOAT_TRAIN",
+    "BRATSGOAT_TEST",
+    "BRATSGLI_0_75",
+    "BRATSGLI_75_100",
+    "BRATSGLI_0_1000",
+    "BRATSGLI_1000_1350",
+    "get_ds_randslices",
+    "get_ds_allsegslices",
+    "get_ds_allslices",
+    "loader",
+    "randcrop",
+    'shuffle_channels',
+    'shuffle_channels_around',
+    'groupwise_tfms',
+    'GroupwiseTfms',
+    'sliding_inferencen',
+    "MRISlicer"
+]
+
 RHUH_TRAIN = r"E:\dataset\RHUH-GBM\rhuh full v2 train.joblib"
 RHUH_TEST = r"E:\dataset\RHUH-GBM\rhuh full v2 test.joblib"
 
@@ -35,12 +58,29 @@ BRATSGLI_75_100 = r"E:\dataset\BraTS-GLI v2\brats-gli 75-100.joblib"
 BRATSGLI_0_1000 = r"E:\dataset\BraTS-GLI v2\brats-gli 120 0-1000.joblib"
 BRATSGLI_1000_1350 = r"E:\dataset\BraTS-GLI v2\brats-gli 120 1000-1350.joblib"
 
-def get_ds(path, around=1, any_prob = 0.05) -> list[MRISlicer]:
+def get_ds_randslices(path, around=1, any_prob = 0.05) -> list[MRISlicer]:
+    """Returns one object per study that returns a random slice on call."""
     ds:list[MRISlicer] = joblib.load(path)
     for i in ds: i.set_settings(around = around, any_prob = any_prob)
     return ds
 
-def loader(x:MRISlicer) -> tuple[torch.Tensor, torch.Tensor]:
+def get_ds_allsegslices(path, around=1, any_prob = 0.05) -> list[Callable[[], tuple[torch.Tensor, torch.Tensor]]]:
+    """Returns all slices in a study that contain segmentation + `any_prob` * 100 % objects that return a random slice."""
+    MRIs:list[MRISlicer] = joblib.load(path)
+    for i in MRIs: i.set_settings(around = around, any_prob = any_prob)
+    ds = reduce_dim([i.get_all_seg_slice_callables() for i in MRIs])
+    random_slices = reduce_dim([i.get_anyp_random_slice_callables() for i in MRIs])
+    ds.extend(random_slices)
+    return ds
+
+def get_ds_allslices(path, around=1) -> list[Callable[[], tuple[torch.Tensor, torch.Tensor]]]:
+    """Returns all slices in a study that contain segmentation + `any_prob` * 100 % objects that return a random slice."""
+    MRIs:list[MRISlicer] = joblib.load(path)
+    for i in MRIs: i.set_settings(around = around)
+    ds = reduce_dim([i.get_all_slice_callables() for i in MRIs])
+    return ds
+
+def loader(x:MRISlicer | Callable[[], tuple[torch.Tensor, torch.Tensor]]) -> tuple[torch.Tensor, torch.Tensor]:
     return x()
 
 def randcrop(x: tuple[torch.Tensor, torch.Tensor], size = (96,96)):

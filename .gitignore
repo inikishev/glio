@@ -160,7 +160,7 @@ cython_debug/
 #.idea/
 
 
-# Нет
+# no
 
 glioblastoma_diff/
 HistogramLayer.py

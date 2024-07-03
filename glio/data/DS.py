@@ -16,7 +16,7 @@ from ..python_tools import (
     get1,
     get0
 )
-from ..visualize.visualize import Visualizer
+from ..plot import Figure
 
 from . import DSBase
 from .DSBase import Composable
@@ -525,19 +525,19 @@ class DSClassification(DSBase.DS, DSBase.DSWithTransform, DSBase.DSWithTargets, 
         return subsample_ds
 
     def preview(self, n:int=4):
-        v=Visualizer()
+        v=Figure()
         for i in range(n):
             data, label = self[i]
-            v.imshow(data, label = str(self.idx_to_target[label]))
+            v.add().imshow(data, label = str(self.idx_to_target[label]))
         v.show()
 
     def preview_targets(self, n:int=1):
-        v=Visualizer()
+        v=Figure()
         for _ in range(n):
             subset = self.subsample(1, per_class=True, shuffle=True)
             for sample in subset:
                 data, label = sample
-                v.imshow(data, label = str(subset.idx_to_target[label]))
+                v.add().imshow(data, label = str(subset.idx_to_target[label]))
         v.show()
 
     def refresh_targets(self):

@@ -1,49 +1,83 @@
-from typing import Optional,TYPE_CHECKING, Any
+
 from collections.abc import Iterable
+from typing import Any, TYPE_CHECKING, Optional
 from contextlib import nullcontext
 import torch, torch.utils.data
-from ..torch_tools import to_device
+from ..design.EventModel import Callback, CBEvent
 from ..python_tools import SupportsIter
-from ..design.CallbackModel import Callback
+from ..torch_tools import ensure_device, ensure_detach, ensure_detach_cpu
 if TYPE_CHECKING:
-    from .learner import Learner
+    from .Learner import Learner
 
 
+class Default_Forward(CBEvent):
+    event = "forward"
+    def __call__(self, learner: "Learner", inputs: torch.Tensor):
+        learner.preds = learner.model(inputs)
+        return learner.preds
 
-class Default_Backward(Callback):
-    DEFAULT = True
-    def backward(self, learner: "Learner"):
+class Default_GetLoss(CBEvent):
+    event = "get_loss"
+    def __call__(self, learner: "Learner", preds:torch.Tensor, targets: torch.Tensor):
+        learner.loss = learner.loss_fn(preds, targets) # type:ignore
+        return learner.loss
+
+class Default_Backward(CBEvent):
+    event = "backward"
+    def __call__(self, learner: "Learner"):
         if learner.accelerator is None: learner.loss.backward()
         else: learner.accelerator.backward(learner.loss)
 
-class Default_OptimizerStep(Callback):
-    DEFAULT = True
-    def optimizer_step(self, learner: "Learner"):
-        learner.optimizer.step() # type:ignore
+class Default_OptimizerStep(CBEvent):
+    event = "optimizer_step"
+    def __call__(self, learner: "Learner", *args, **kwargs):
+        learner.optimizer.step(*args, **kwargs) # type:ignore
 
-class Default_ZeroGrad(Callback):
-    DEFAULT = True
-    def zero_grad(self, learner: "Learner"):
+class Default_ZeroGrad(CBEvent):
+    event = "zero_grad"
+    def __call__(self, learner: "Learner"):
         learner.optimizer.zero_grad() # type:ignore
 
-class Default_SchedulerStep(Callback):
-    DEFAULT = True
-    def scheduler_step(self, learner: "Learner"):
+class Default_SchedulerStep(CBEvent):
+    event = "scheduler_step"
+    def __call__(self, learner: "Learner"):
         if learner.scheduler is not None:
             learner.scheduler.step()
 
-class Default_OneBatch(Callback):
-    DEFAULT = True
-    def one_batch(self, learner: "Learner", inputs: torch.Tensor, targets: torch.Tensor, train=True):
-        if train: learner.model.train()
-        else: learner.model.eval()
+# class Default_SetMode(CBEvent):
+#     event = "set_mode"
+#     def __call__(self, learner: "Learner", train=True):
+#         if hasattr(learner.model, "train") and hasattr(learner.optimizer, "eval"):
+#             if train: learner.model.train()
+#             else: learner.model.eval()
+#         # if hasattr(learner.optimizer, "train") and hasattr(learner.optimizer, "eval"):
+#         #     if train: learner.optimizer.train() # type:ignore
+#         #     else: learner.optimizer.eval() # type:ignore
+
+class Default_Train(CBEvent):
+    event = "train"
+    def __call__(self, learner: "Learner"):
+        if hasattr(learner.model, "train") and callable(learner.model.train): learner.model.train()
+        if hasattr(learner.optimizer, "train") and callable(learner.optimizer.train): learner.optimizer.train() # type:ignore
+
+class Default_Eval(CBEvent):
+    event = "eval"
+    def __call__(self, learner: "Learner"):
+        if hasattr(learner.model, "eval") and callable(learner.model.eval): learner.model.eval()
+        if hasattr(learner.optimizer, "eval") and callable(learner.optimizer.eval): learner.optimizer.eval() # type:ignore
+
+class Default_OneBatch(CBEvent):
+    event = "one_batch"
+    def __call__(self, learner: "Learner", inputs: torch.Tensor, targets: torch.Tensor, train=True):
+        learner.train()
+        if learner.accelerator is None: inputs, targets = inputs.to(learner.device), targets.to(learner.device)
         with nullcontext() if train else torch.no_grad():
 
             # get predictions
-            learner.preds = learner.model(inputs)
+            learner.forward(inputs)
 
             # calculate loss
-            learner.loss = learner.loss_fn(learner.preds, targets) # pylint: disable=E1102 # type:ignore
+            learner.get_loss(learner.preds, targets)
 
             # backprop
             if train:
@@ -52,73 +86,56 @@ class Default_OneBatch(Callback):
                 learner.optimizer_step()
                 learner.scheduler_step()
 
-class Default_Inference(Callback):
-    DEFAULT = True
-    def inference(self, learner: "Learner", batch: torch.Tensor| Any, to_cpu = True):
-        learner.model.eval()
-        batch = to_device(batch, learner.device)
-        with torch.no_grad():
-            if to_cpu: return learner.model(batch).cpu().detach()
-            return learner.model(batch).detach()
 
-class Default_OneEpoch(Callback):
-    DEFAULT = True
-    def one_epoch(self, learner: "Learner", dl: torch.utils.data.DataLoader | SupportsIter, train=True):
+class Default_Inference(CBEvent):
+    event = "inference"
+    def __call__(self, learner: "Learner", batch: torch.Tensor| Any, to_cpu = True):
+        learner.eval()
+        batch = ensure_device(batch, learner.device)
+        with torch.no_grad():
+            if to_cpu: return ensure_detach_cpu(learner.forward(batch))
+            return ensure_detach(learner.forward(batch))
+
+class Default_OneEpoch(CBEvent):
+    event = "one_epoch"
+    def __call__(self, learner: "Learner", dl: torch.utils.data.DataLoader | SupportsIter, train=True):
         for learner.cur_batch, (inputs, targets) in enumerate(dl): # type:ignore
             learner.one_batch(inputs, targets, train=train)
 
-class Default_Fit(Callback):
-    DEFAULT = True
 
-    def fit(
+class Default_Fit(CBEvent):
+    event = "fit"
+    def __call__(
         self,
         learner:"Learner",
-        num_epochs: int,
-        dl_train: Optional[torch.utils.data.DataLoader | Any] = None,
-        dl_test: Optional[torch.utils.data.DataLoader | Any] = None,
-        test_first=True,
-        test_on_interrupt = True,
-        extra:Optional[Callback | Iterable[Callback]] = None,
-        without:Optional[str | Iterable[str]] = None
+        epochs_iterator,
+        dltrain: Optional[torch.utils.data.DataLoader | Any] = None,
+        dltest: Optional[torch.utils.data.DataLoader | Any] = None,
+        test_first = False,
+        test_every: int = 1,
     ):
-        # Присваиваем аттрибуты
-        learner.dl_train = dl_train
-        learner.dl_test = dl_test
-        learner.test_first = test_first
-        learner.test_on_interrupt = test_on_interrupt
-        learner.num_epochs = num_epochs
-        learner.epochs_iterator = range(learner.num_epochs)
-        learner.cur_epoch = 0
-        if learner.accelerator is None: learner.model = to_device(learner.model, learner.device) # type:ignore
 
-        # Запускаем цикл обучения и тестирования
-        with learner.context("fit", extra=extra, without=without):
-            try:
-                # итерация по обучающей выборке и тестированию, если они есть.
-                for learner.cur_epoch in learner.epochs_iterator:
-                    with learner.context("full_epoch"):
-                    # тестирование в начале
-                        if learner.cur_epoch == 0 and learner.test_first and learner.dl_test is not None:
-                            learner.one_epoch(learner.dl_test, train=False)
+        for learner.cur_epoch in epochs_iterator:
+            learner.event("before_epoch")
+            with learner.context("full_epoch"):
+            # testing before 1st epoch
+                if learner.cur_epoch == 0 and test_first and dltest is not None:
+                    learner.one_epoch(dltest, train=False)
 
-                        # обучение
-                        if learner.dl_train is not None:
-                            learner.one_epoch(learner.dl_train, train=True)
+                # training
+                if dltrain is not None:
+                    learner.one_epoch(dltrain, train=True)
 
-                        # тестирование
-                        if learner.dl_test is not None:
-                            learner.one_epoch(learner.dl_test, train=False)
+                # testing
+                if dltest is not None and learner.cur_epoch % test_every == 0:
+                    learner.one_epoch(dltest, train=False)
 
-                        learner.total_epoch += 1
+                learner.total_epoch += 1
+            learner.event("after_epoch")
 
-            except KeyboardInterrupt:
-                if learner.test_on_interrupt and learner.status == "train" and learner.dl_test is not None:
-                    print("Keyboard interrupt, testing one last time... Press stop again to cancel.")
-                    try: learner.one_epoch(learner.dl_test, train=False)
-                    except KeyboardInterrupt: print("Keyboard interrupt, stopping testing...")
-                else: print("Keyboard interrupt, stopping the training...")
 
-class Default_Log(Callback):
-    DEFAULT = True
-    def log(self, learner:"Learner", metric:str, value):
+
+class Default_Log(CBEvent):
+    event = "log"
+    def __call__(self, learner:"Learner", metric:str, value):
         learner.logger.add(metric, value, learner.total_batch)

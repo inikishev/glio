@@ -36,6 +36,10 @@ def znormch(x:torch.Tensor, mean=0., std=1.):
     std[std==0] = 1
     return ((x - x.mean(list(range(1, x.ndim)), keepdim=True)) / std) + mean
 
+def meanstdnormch(x:torch.Tensor, mean, std):
+    """Normalize to mean 0 std 1 using given mean and std values"""
+    return ((x - x.mean(list(range(1, x.ndim)), keepdim=True)) / std) + mean
+
 class ZNormCh:
     def __init__(self, mean=0., std=1.):
         """channel-wise Z-normalization"""
@@ -214,3 +218,10 @@ class RandContrast:
     def __call__(self, x): 
         if _prob(self.p): return rand_contrast(x, self.min, self.max)
         return x
+    
+    
+def unnomalizech(x, mean, std):
+    """Undoes v2.Normalize"""
+    inverse_mean = [-mean[i]/std[i] for i in range(len(mean))]
+    inverse_std = [1/std[i] for i in range(len(mean))]
+    return meanstdnormch(x, inverse_mean, inverse_std)

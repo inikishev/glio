@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 import torch
-from glio.train2 import *
+from glio.train import *
 from glio.plot import Figure
 from glio.torch_tools import one_hot_mask
 

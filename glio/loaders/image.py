@@ -1,4 +1,4 @@
-# Автор - Никишев Иван Олегович группа 224-31
+"img oladers "
 
 import torch
 import torchvision.transforms.v2

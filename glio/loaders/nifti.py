@@ -1,5 +1,4 @@
 """nifti"""
-# Автор - Никишев Иван Олегович группа 224-31
 from typing import Optional
 import concurrent.futures
 import nibabel as nib

@@ -1,9 +1,10 @@
-"График"
+"fastprogress"
 import numpy as np
 from fastprogress.fastprogress import master_bar, progress_bar
-from ..design.CallbackModel import Callback
-from .learner import Learner
-class FastProgressBar(Callback):
+from ..design.EventModel import CBMethod
+from .Learner import Learner
+class FastProgressBar(CBMethod):
+    order = 90
     def __init__(
         self,
         metrics=("train loss", "test loss"),
@@ -13,8 +14,9 @@ class FastProgressBar(Callback):
         fit=True,
         plot_max=4096,
         smooth=None,
+        maxv=None,
     ):
-        self.order = 90
+        super().__init__()
         self.plot = plot
         if isinstance(metrics, str): metrics = [metrics]
         self.metrics = metrics
@@ -24,17 +26,18 @@ class FastProgressBar(Callback):
         self.fit = fit
         if isinstance(smooth, int): smooth = [smooth for _ in range(len(metrics))]
         self.smooth = smooth
+        self.maxv= maxv
 
     def before_fit(self, learner:Learner):
-        self.mbar = learner.epochs_iterator = master_bar(learner.epochs_iterator)
+        self.mbar = learner.epochs_iterator = master_bar(learner.epochs_iterator) # type:ignore
 
-    def before_epoch(self, learner:Learner):
+    def before_any_epoch(self, learner:Learner):
         learner.dl = progress_bar(learner.dl, leave=False, parent=self.mbar)
 
     def _plot(self, learner: Learner):
         if self.plot:
             metrics = [learner.logger[metric] for metric in self.metrics if metric in learner.logger]
-            metrics = [i for i in metrics if len(i) > 0]
+            metrics = [(i if self.maxv is None else dict(zip(i.keys(), np.clip(list(i.values()), a_min=None, a_max=1)))) for i in metrics if len(i) > 0]
             if len(metrics) > 0:
                 reduction = [max(int(len(metric) / self.plot_max), 1) for metric in metrics]
                 metrics = [([list(m.keys())[::reduction[i]], list(m.values())[::reduction[i]]] if reduction[i]>1 else [list(m.keys()), list(m.values())]) for i, m in enumerate(metrics)]
@@ -45,9 +48,9 @@ class FastProgressBar(Callback):
                 try:
                     self.mbar.update_graph(metrics)
                 except AttributeError: pass
-    def after_batch(self, learner: Learner):
-        if self.b and learner.status == 'train' and learner.cur_batch % self.b == 0: self._plot(learner)
-    def after_epoch(self, learner: Learner):
-        if self.e and learner.status == 'train' and learner.cur_epoch % self.e == 0: self._plot(learner)
+    def after_train_batch(self, learner: Learner):
+        if self.b and learner.cur_batch % self.b == 0: self._plot(learner)
+    def after_train_epoch(self, learner: Learner):
+        if self.e and learner.cur_epoch % self.e == 0: self._plot(learner)
     def after_fit(self, learner: Learner):
         if self.fit: self._plot(learner)

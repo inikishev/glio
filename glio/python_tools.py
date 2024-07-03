@@ -1,4 +1,4 @@
-"""Инструменты, использующие встроенные библиотеки Python"""
+"""python stuff"""
 from collections.abc import Sequence,Callable, Iterable, Mapping
 from typing import Any, Protocol, Optional
 from time import perf_counter
@@ -21,6 +21,14 @@ class HasGetItemInt(Protocol):
 SupportsIter = Iterable | HasGetItemInt
 
 def isiterable(x:Any) -> bool:
+    """Better than `isinstance(x, Iterable)` but I don't remember why.
+
+    Args:
+        x (Any): _description_
+
+    Returns:
+        bool: _description_
+    """
     if hasattr(x, '__iter__'): return not isinstance(x, type)
     if hasattr(x, '__getitem__'):
         try:
@@ -32,19 +40,22 @@ def isiterable(x:Any) -> bool:
 
 def hasgetitem(x:Any) -> bool: return hasattr(x, '__getitem__')
 
-def ismapping(x:Any) -> bool: return hasattr(x,"keys") and hasattr(x, "values") and hasattr(x, "items") and hasattr(x, "__getitem__")
+def ismapping(x:Any) -> bool:
+    """Better than `isinstance(x, Mapping)` but I don't remember why.
+
+    Args:
+        x (Any): _description_
+
+    Returns:
+        bool: _description_
+    """
+    return hasattr(x,"keys") and hasattr(x, "values") and hasattr(x, "items") and hasattr(x, "__getitem__")
 
 def key_value(iterable: SupportsIter):
-    """
-    Создаёт аналогичный интерфейс для итерации по последовательностям и словарям. Возвращает итератор, возвращающий ключ и значение.
-    """
     if ismapping(iterable): return iterable.items() # type:ignore
     return enumerate(iterable) #type:ignore
 
 def flatten_generator(iterable:SupportsIter):
-    """
-    Генератор по вложенной последовательности. Например, `[1, [2, 3], [[4]]]` -> `[1,2,3,4]`. Пустые под-последовательности удаляются.
-    """
     if isiterable(iterable):
         for i in key_value(iterable):
             if isiterable(i[1]):
@@ -53,18 +64,12 @@ def flatten_generator(iterable:SupportsIter):
     else: yield iterable
 
 def flatten(iterable: SupportsIter) -> list[Any]:
-    """
-    Выравнивает вложенную последовательность. Например, `[1, [2, 3], [[4]]]` -> `[1,2,3,4]`. Пустые под-последовательности удаляются.
-    """
     if isiterable(iterable):
         return [a for i in iterable for a in flatten(i)]
     else:
         return [iterable]
 
 def flatten_by_tree_generator(iterable: HasGetItem, tree):
-    """
-    Генератор, выравнивает вложенную последовательность согласно структуре "дерева".
-    """
     if isiterable(tree):
         for k,v in key_value(tree):
             if hasgetitem(v):
@@ -73,64 +78,66 @@ def flatten_by_tree_generator(iterable: HasGetItem, tree):
     else: yield iterable
 
 def flatten_by_tree(iterable: HasGetItem, tree):
-    """
-    Выравнивает рекурсивную последовательность согласно структуре "дерева".
-    """
     return list(flatten_by_tree_generator(iterable, tree))
 
 
-def apply_tree(x: Any, funcs, cached: Any = None, flatten: bool = False): #pylint: disable=W0621
-    """
-    Применяет дерево функций к объекту x. Возвращает список той же вложенной формы, что и `funcs`, с `x` после применения каждой функции. `None` может использоваться вместо функции и идентичен тождественной функции, для ветвления без обработки.
-
-    Дерево — это рекурсивная последовательность вызываемых объектов:
-
+def apply_tree(x: Any, tree, cached: Any = None, flatten: bool = False): #pylint: disable=W0621
+    """_summary_
     ```py
-    [функция1, функция2, [функция3, функция4], [функция5]]
+    tree = [func1, func2, [func3, func4], [func5]]
     ```
 
-    Такое дерево возвращает:
+    If you apply the tree, you get:
 
     ```py
     [func1(x), func2(func1(x)), [func3(func2(func1(x))), func4(func3(func2(func1(x))))), [func5(func2(func1(x))))], [func5(func2(func1(x)) ))]]
     ```
+    Args:
+        x (Any): inputs
+        tree (_type_): function tree
+        cached (Any, optional): if specified, instead of passing `x` to the 1st function in the tree,
+        `cached` will be used as its output. Defaults to None.
+        flatten (bool, optional): Flattens the output. Defaults to False.
 
-     Таким образом, применяется `func1`, затем `func2`, затем `X` ветвится на две копии, `[func3, func4]` применяется к первой и `[func5]` ко второй. Глубина дерева не ограничена программно.
-
-     `cached` — первая функция в дереве будет заменена значением `cached`, если оно не `None`. Например, первой функцией может быть `read_image`, и если есть уже загруженное изображение, его можно передать в качестве аргумента для `cached`, чтобы повторно не декодировать."""
-    if ismapping(funcs):
+    Returns:
+        _type_: _description_
+    """
+    if ismapping(tree):
         y = {}
         is_dict = True
     else:
         y = []
         is_dict = False
 
-    for k, func in key_value(funcs):
+    for k, func in key_value(tree):
 
-        # Объект вызываем
+        # callable
         if callable(func):
-            # Только 1 элемент может быть кэширован
+            # only 1 elem can be cached
             if cached is not None:
                 x = cached
                 cached = None
             else: x = func(x)
             if is_dict: y[k] = x
             else: y.append(x)#pyright:ignore[reportAttributeAccessIssue]
-        # Объект не вызываем
+        # not callable
         elif not func:
             if is_dict: y[k] = x
             else: y.append(x)#pyright:ignore[reportAttributeAccessIssue]
-        # объект - последовательность, данная функция вызывается рекурсивно на этой часте объекта
+        # sequence, recurse
         else:
             if is_dict: y[k] = {}
             else: y.append([])#pyright:ignore[reportAttributeAccessIssue]
             y[k] = apply_tree(x, func, cached)
-    return y if not flatten else flatten_by_tree(y, funcs)
+    return y if not flatten else flatten_by_tree(y, tree)
 
 
 def apply_recursive_(iterable: SupportsIter, func: Callable):
-    """
-    Применяет func ко всем элементам во вложенном итерируемом объекте.
+    """Applies func to all elements of iterable recursively and in-place.
+
+    Args:
+        iterable (SupportsIter): _description_
+        func (Callable): _description_
     """
     if isiterable(iterable):
         for k,v in key_value(iterable):
@@ -139,8 +146,13 @@ def apply_recursive_(iterable: SupportsIter, func: Callable):
     else: iterable = func(iterable)
 
 def get_first_recursive(iterable: SupportsIter) -> Any:
-    """
-    Возвращает первый элемент вложенной последовательности.
+    """Returns first element of a recursive iterable.
+
+    Args:
+        iterable (SupportsIter): _description_
+
+    Returns:
+        Any: _description_
     """
     try:
         for i in iterable: return get_first_recursive(i)
@@ -149,7 +161,6 @@ def get_first_recursive(iterable: SupportsIter) -> Any:
     return iterable
 
 def perf_counter_deco(func: Callable, n: int = 1):
-    """Декоратор для замера времени выполнения функции"""
     def inner(*args, **kwargs):
         time_start = perf_counter()
         for _ in range(n):
@@ -166,35 +177,43 @@ def perf_counter_context(name: Optional[str | Any] = None, ndigits: Optional[int
     if ndigits is not None: time_took = round(time_took, ndigits)
     print(f"{name} took {time_took} perf_counter seconds")
 
-def flexible_filter(keys, filters):
-    """Если фильтр - функция, используется его возвращаемое значение для каждого ключа;
+def flexible_filter(keys:Iterable[str], filters:Iterable[Callable | str | list[str] | tuple]) -> list[str]:
+    """filters is a sequence of filters. Returns keys that match all filters.
 
-    если строка: возвращает True, если является подстрокой ключа;
+    If a filter is a string, returns all keys that have it as a substring.
 
-    если список: возвращает True, если хотя бы одна подстрока ключей есть в списке;"""
+    If filter is a list/tuple, returns all keys that have at least one of the substrings in the list.
+
+    If filter is a function, each key is passed to it and it must return true or false.
+
+    Args:
+        keys (_type_): _description_
+        filters (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     for f in filters:
         if callable(f): keys = [k for k in keys if f(k)]
         elif isinstance(f, (int, float, str)): keys = [k for k in keys if str(f).lower() in str(k).lower()]
         elif isinstance(f, (list, tuple)): keys = [k for k in keys if any([str(i).lower() in str(k).lower() for i in f])]
-    return keys
+    return list(keys)
 
 class ExhaustingIterator:
     """
-    Выполняет итерацию по объекту, но останавливает итерацию, как если бы объект имел другую длину.
-
-    Итерация возобновляется начиная с последнего элемента после её остановки.
+    Iterates an objects but stops the iteration as if the object had a different length.
     """
     def __init__(self, obj:HasGetItemAndLen, length: int, shuffle:bool = True):
         """
-        У объекта должны быть методы `__getitem___` и `__len__`.
+        Object must have `__getitem___` and `__len__`.
         """
         self.obj = obj
         self.length = length
-        self.cur = -1 # +1 в начале __next__
+        self.cur = -1 # +1 on __next__ start
         self.iterations = 0
         self.indexes = list(range(len(self.obj)))
         self.shuffle = shuffle
-        #if self.shuffle: random.shuffle(self.indexes) будет сделан в след. __next__ когда cur = 0
+        #if self.shuffle: random.shuffle(self.indexes) will be done in next . __next__ when cur = 0
         self.n_samples = len(self.indexes)
         self.not_doing_0th_element = False
 
@@ -205,10 +224,10 @@ class ExhaustingIterator:
         self.cur+=1
         if self.not_doing_0th_element and self.cur % self.length == 0:
             self.not_doing_0th_element = False
-            self.cur -= 1 # если длина 2 будут взяты 0, 1, стоп на 2, cur -= 1 = 1? в сл. итерации self.cur+=1 = 2
+            self.cur -= 1 # if len is 2 it takes 0, 1, stops at 2, cur -= 1 = 1? in next iter self.cur+=1 = 2
             raise StopIteration()
         self.not_doing_0th_element = True
-        element = self.cur % self.n_samples # элемент, # при длине 3 будет 0, 3, 6
+        element = self.cur % self.n_samples # el, # with len 3 will be 0, 3, 6
         if element == 0:
             if self.shuffle: random.shuffle(self.indexes)
         return self.obj[self.indexes[element]]
@@ -217,7 +236,7 @@ class ExhaustingIterator:
 
 
 class ItemUnderIndex:
-    """Содержит ссылку на индексируемый объект и индекс элемента в объекте, возвращает элемент под индексом."""
+    """Basically itemgetter because I am dumb."""
 
     def __init__(self, obj:HasGetItem, index: int):
         self.obj = obj
@@ -227,8 +246,7 @@ class ItemUnderIndex:
         return self.obj[self.index]
 
 class ItemUnder2Indexes:
-    """Содержит ссылку на индексируемый объект и два индекса элемента в объекте, возвращает элемент под индексами."""
-
+    """Basically itemgetter because I am dumb."""
     def __init__(self, obj:HasGetItem, index1: int, index2:int):
         self.obj = obj
         self.index1 = index1
@@ -240,25 +258,24 @@ class ItemUnder2Indexes:
 
 
 def reduce_dim(a:SupportsIter) -> list:
-    """Удаляет один уровень вложенности в последовательности."""
     return functools.reduce(operator.iconcat, a, []) # type:ignore
 
 
 def subclasses_recursive(cls:type | Any) -> set[type]:
-    """Рекурсивно получает все под-классы класса."""
+    """Recursively get a set of all subclasses of a class (can pass a type or an object of a type)."""
     if not isinstance(cls, type): cls = type(cls)
     return set(cls.__subclasses__()).union(
         [s for c in cls.__subclasses__() for s in subclasses_recursive(c)])
 
 def type_str(obj:object | type) -> str:
-    """Возвращает название класса объекта с пространством имен. Например, `torch.nn.Conv2d`"""
+    """Returns class name that includes the namespace, e.g., `torch.nn.Conv2d`"""
     if not isinstance(obj, type): obj = type(obj)
     return repr(obj).replace("<class '", "").replace("'>", "")
 
 
 
 def to_callable(obj, *args, **kwargs):
-    """Возвращает вызываемый объект."""
+    """Big Chungus."""
     if isinstance(obj, bool): return lambda _: obj
     elif not isinstance(obj, type):
         if len(args) == 0 and len(kwargs) == 0: return obj
@@ -286,7 +303,7 @@ def int_at_beginning(s:str) -> int | str:
             return num
 
 def dict_to_table(data:Mapping, key, order = None, sort_key: Optional[Callable] = None) -> str:
-    """Возвращает таблицу по словарю."""
+    """Returns a table from a dictionary."""
     if sort_key is not None: data = {k: v for k, v in sorted(data.items(), key=sort_key)}
     keys = []
     if order is not None: keys = order
@@ -313,7 +330,17 @@ def dict_to_table(data:Mapping, key, order = None, sort_key: Optional[Callable] 
 
 
 def get_all_files(path:str, recursive:bool = True, extensions: Optional[str | Sequence[str]] = None, path_filter:Optional[Callable] = None) -> list[str]:
-    """Возвращает список полных путей ко всем файлам в папке, рекурсивно, если `recursive` = `True`, фильтрует с использованием `extensions` и `path_filter`"""
+    """_summary_
+
+    Args:
+        path (str): _description_
+        recursive (bool, optional): _description_. Defaults to True.
+        extensions (Optional[str  |  Sequence[str]], optional): _description_. Defaults to None.
+        path_filter (Optional[Callable], optional): _description_. Defaults to None.
+
+    Returns:
+        list[str]: _description_
+    """
     all_files = []
     if isinstance(extensions, str): extensions = [extensions]
     if extensions is not None: extensions = tuple(extensions)
@@ -359,12 +386,12 @@ def ensure_list(x) -> list:
     return [x]
 
 def pretty_print_dict(d: dict) -> None:
-    """Выводит вложенные словари при помощи JSON."""
+    """returns recursive dicts using json lib."""
     import json
     print(json.dumps(d, indent=4, sort_keys=False))
 
 class Wrapper:
-    """Оборачивает объект и копирует его методы. Позволяет хранить аттрибуты во встроенных типах."""
+    """Wraps some object. Basically can let you store attributes in built-in types."""
     def __init__(self, obj):
         self.obj = obj
     def __getattr__(self, name):
@@ -473,7 +500,7 @@ class Wrapper:
         return dir(self.obj)
 
 def wrap(x):
-    """Оборачивает объект и копирует его методы. Позволяет хранить аттрибуты во встроенных типах. Возможно влияет на пространство имён."""
+    """May or may not mess up the namespace."""
     class a(type(x)):pass
     return a(x)
 
@@ -484,7 +511,7 @@ def call_if_callable(x:Callable | Any) -> Callable | Any:
         return x
 
 class Compose:
-    """Композиция функций в обратном порядке"""
+    """Compose"""
     def __init__(self, *transforms):
         self.transforms = flatten(transforms)
 
@@ -524,16 +551,12 @@ def get_last_folder(path: str) -> str:
     return os.path.basename(os.path.normpath(path))
 
 def ndims(sliceable: HasGetItem | Any) -> int:
-    """Возвращает ранг объекта с методом __getitem__.
-    Для однородных массивов эквивалентен `numpy.ndarray.ndim`.
-    Учитывает только первый элемент каждого измерения, поэтому работает с неоднородными объектами."""
+    """ndims for inhomogeneous sequences (only takes 1st element into account)"""
     try: return ndims(sliceable[0])+1
     except TypeError: return 0
 
 def shape(sliceable: HasGetItemAndLen | Any) -> list[int]:
-    """Возвращает размерность объекта с методом __getitem__.
-    Для однородных массивов эквивалентен `numpy.ndarray.shape`.
-    Учитывает только первый элемент каждого измерения, поэтому работает с неоднородными объектами."""
+    """Shape for inhomogeneous sequences (only takes 1st element into account)"""
     s = []
     if isinstance(sliceable, str): return [1]
     try: s.extend(shape(sliceable[0]))
@@ -542,21 +565,9 @@ def shape(sliceable: HasGetItemAndLen | Any) -> list[int]:
     except (TypeError,IndexError): pass
     return s
 
-# def full_shape(sliceable) -> list:
-#     """Возвращает размерность объекта с методом __getitem__.
-#     Для однородных массивов эквивалентен `numpy.ndarray.shape`.
-#     Учитывает только первый элемент каждого измерения, поэтому работает с неоднородными объектами."""
-#     s = []
-#     try:
-#         for sub in sliceable:
-#             try: s.append(full_shape(sub))
-#             except (TypeError, IndexError): pass
-#     except (TypeError, IndexError): return len(sliceable)
-#     return  s
-
 
 class CacheRepeatIterator:
-    """Итератор, кэширует элемент итерируемого объекта и возвращает n раз."""
+    """Iterator, caches each iterated value of the iterated object and yields it `n` times."""
     def __init__(self, obj:SupportsIter, n:int):
         self.obj = obj
         self.iter = iter(self.obj)
@@ -590,7 +601,7 @@ def get__name__(obj:Any) -> str:
 
 
 class ContinuingIterator:
-    """Продолжает итерацию с последнего места."""
+    """Keeps iterating from the last position."""
     def __init__(self, obj):
         self.obj = obj
         self.iter = iter(self.obj)
@@ -608,7 +619,7 @@ class ContinuingIterator:
         self.cur = 0
 
 class EndlessContinuingIterator:
-    """Продолжает итерацию с последнего места, перезапускает при окончании итерируемого объекта."""
+    """Keeps iterating from the last position, restarts if iterated over the object."""
     def __init__(self, obj):
         self.obj = obj
         self.iter = iter(self.obj)
@@ -630,6 +641,7 @@ class EndlessContinuingIterator:
         self.cur = 0
 
 class IterateSingleItem:
+    """Yields `obj` `n` times."""
     def __init__(self, obj, n):
         self.obj = obj
         self.n = n
@@ -749,3 +761,27 @@ def icartesian(iterables):
     for seq in iterables:
         for val in seq:
             yield from __cat(iterable=icartesian(iterables[1:]), value=val)
+
+
+def sequence_to_markdown(s:Sequence, keys:Optional[Sequence] = None, keys_from_s = False, transpose=False) -> str:
+    """s: [row1, row2, row3, ...], or if `transpose` is [col1, col2, col3].
+
+    Args:
+        s (Sequence): _description_
+        keys (Optional[Sequence], optional): _description_. Defaults to None.
+        keys_from_s (bool, optional): _description_. Defaults to False.
+    """
+    if transpose: s = list(zip(*s))
+
+    if keys is None:
+        if keys_from_s: keys = s[0]
+        else: keys = list(range(len(s)))
+
+    if keys is None: raise ValueError("This can't happen...")
+
+    md = '| ' + ' | '.join([str(k) for k in keys]) + ' |\n'
+    md += '| ' + ' | '.join([':-'] * len(keys)) + ' |\n'
+    for row in s:
+        md += '| ' + ' | '.join([str(v) for v in row]) + ' |\n'
+
+    return md

@@ -13,7 +13,7 @@ def _toImage(x) -> sitk.Image:
     if isinstance(x, sitk.Image): return x
     elif os.path.isfile(x): return sitk.ReadImage(x)
     elif os.path.isdir(x): return dicom2sitk(x)
-    else: raise ValueError("Неверный тип данных")
+    else: raise ValueError(f"x either dir file or sitk image but its {type(x) = }")
 
 def pipeline(t1:str|sitk.Image, t1ce:str|sitk.Image, flair:str|sitk.Image, t2w:str|sitk.Image,
              register=True, skullstrip=True, erode=1, cropbg=True) -> tuple[list[sitk.Image],list[sitk.Image]]:
@@ -22,15 +22,15 @@ def pipeline(t1:str|sitk.Image, t1ce:str|sitk.Image, flair:str|sitk.Image, t2w:s
     flair_orig = _toImage(flair)
     t2w_orig = _toImage(t2w)
 
-    logging.info("Регистрация модальностей в SRI24")
+    logging.info("registering to SRI24")
     if register: t1_sri, t1ce_sri, flair_sri, t2w_sri = register_imgs_to_SRI24(t1_orig, (t1ce_orig, flair_orig, t2w_orig))
     else: t1_sri, t1ce_sri, flair_sri, t2w_sri = t1_orig, t1ce_orig, flair_orig, t2w_orig
 
-    logging.info("Удаление черепа")
+    logging.info("skullstripping")
     if skullstrip: t1ce_skullstrip, t1_skullstrip, flair_skullstrip, t2w_skullstrip = skullstrip_imgs(t1ce_sri, (t1_sri, flair_sri, t2w_sri), erode=erode)
     else: t1ce_skullstrip, t1_skullstrip, flair_skullstrip, t2w_skullstrip = t1ce_sri, t1_sri, flair_sri, t2w_sri
 
-    logging.info("Нормализация")
+    logging.info("normalization")
     norm = znormalize_imgs((t1_skullstrip,t1ce_skullstrip,flair_skullstrip, t2w_skullstrip))
 
     if cropbg: return [t1_sri, t1ce_sri, flair_sri, t2w_sri], crop_bg_imgs(norm)

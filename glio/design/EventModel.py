@@ -14,15 +14,15 @@ from ..python_tools import type_str, get__name__
 class Cancel(Exception): pass
 
 def _raise_not_implemented(self, *args, **kwargs):
-    raise NotImplementedError(f"Нет `__call__` у {self.__class__.__name__}")
+    raise NotImplementedError(f"{self.__class__.__name__} is missing `__call__`")
 
 class Callback(ABC):
     order: float | int = 0
     __call__: Callable = _raise_not_implemented
 
     @abstractmethod
-    def attach(self, __model: "EventModel") -> None: raise NotImplementedError(f"Нет `attach` у {self.__class__.__name__}")
-    def attach_default(self, __model: "EventModel") -> None: raise NotImplementedError(f"Нет `attach_default` у {self.__class__.__name__}")
+    def attach(self, __model: "EventModel") -> None: raise NotImplementedError(f"{self.__class__.__name__} is missing `attach` method.")
+    def attach_default(self, __model: "EventModel") -> None: raise NotImplementedError(f"{self.__class__.__name__} is missing `attach_default` method.")
 
     def __str__(self):
         return f"{type_str(self)}()"
@@ -34,7 +34,7 @@ class Callback(ABC):
         model.remove(self)
 
 class CBEvent(Callback, ABC):
-    """Привязывается к методу под `event`, необходим `__call__`."""
+    """Attaches to method `event`, requires `__call__`."""
     event: str
 
     @final
@@ -62,7 +62,7 @@ RESERVED_CALLBACK_ATTRIBUTES = (
 )
 
 class CBMethod(Callback, ABC):
-    """Привязывается к методам, названия которых совпадают с названиями методов данного объекта, за исключением зарезервированных."""
+    """Attaches to methods that have the same name as methods of this callback, unless reserved."""
     cond: Callable | None = None
     @final
     def _attach(self, model: "EventModel", default=False):
@@ -74,7 +74,7 @@ class CBMethod(Callback, ABC):
                     counter += 1
                     if default: model.attach_default(fn = method, event = attr_name, cond=self.cond, name=get__name__(self), ID=id(self))
                     else: model.attach(event = attr_name, fn = method, cond=self.cond, name=get__name__(self), ID=id(self))
-        if counter == 0: logging.warning("Нет методов для %s.", self)
+        if counter == 0: logging.warning("There are no methods to attach in callback %s.", self)
     @final
     def attach(self, model: "EventModel"): self._attach(model,default=False)
     @final
@@ -82,7 +82,7 @@ class CBMethod(Callback, ABC):
 
 
 class CBCond(Callback, ABC):
-    """Привязывается к методам и с условиями, указанными пользователем при помощи специальных методов, таких как `on`, `every`, `first`."""
+    """Attaches to methods with conditions that are specified by calling special methdos like `on`, `every`, `first`."""
     default_events: Iterable[tuple[str, Callable | None]] | Any = ()
 
     def __init__(self):
@@ -107,19 +107,19 @@ class CBCond(Callback, ABC):
     @final
     def attach(self, model: "EventModel"):
         events = self.events if len(self.events) > 0 else self.default_events
-        if len(events) == 0: logging.warning("Условия не указаны для %s.", self) # type:ignore
+        if len(events) == 0: logging.warning("No conditions are given for callback %s.", self) # type:ignore
         for event, cond in events:
             model.attach(event=event, fn=self, cond=cond)
 
     @final
     def attach_default(self, model: "EventModel"):
         events = self.events if len(self.events) > 0 else self.default_events
-        if len(events) == 0: logging.warning("Условия не указаны для %s.", self) # type:ignore
+        if len(events) == 0: logging.warning("No conditions are given for default callback %s.", self) # type:ignore
         for event, cond in events:
             model.attach_default(event=event, fn=self, cond=cond)
 
 class CBContext(Callback):
-    """Не привязывается к методам, может задавать `enter` и `exit`"""
+    """Doesn't attach to methods, can define `enter` and `exit`"""
     @final
     def attach(self, model: "EventModel"): model.attach(event = "__CBContext", fn = self, cond = lambda x: False)
     @final
@@ -238,7 +238,7 @@ class EventModel(ABC):
         name: Optional[str] = None,
         ID: Optional[Hashable] = None,
     ):
-        """Призязка функции `fn` к методу `event`."""
+        """Attach function `fn` to method `event`."""
         if event not in self.events: self.events[event] = Event(event)
         self.events[event].add(fn = fn, cond = cond, order = order, ID = ID, name=name)
 
@@ -251,13 +251,13 @@ class EventModel(ABC):
         name: Optional[str] = None,
         ID: Optional[Hashable] = None,
     ):
-        """Призязка функции `fn` к методу по умолчанию `event`."""
+        """Attach function `fn` to default method `event`."""
         if event not in self.default_events: self.default_events[event] = Event(event)
         self.default_events[event].add(fn = fn, cond = cond, order = order, ID = ID, name=name)
 
     @final
     def add(self, cb: Callback | Iterable[Callback]):
-        """Привязка каллбэка `cb` через его метод `attach`."""
+        """Attach callback `cb` using its method `attach`."""
         if isinstance(cb, Callback): cb = [cb]
         for i in cb: i.attach(self)
         self.cbs.extend(cb)
@@ -267,7 +267,7 @@ class EventModel(ABC):
 
     @final
     def add_default(self, cb: Callback | Iterable[Callback]):
-        """Привязка каллбэка по умолчанию `cb` через его метод `attach`."""
+        """Attach callback `cb` using its method `attach_default`."""
         if isinstance(cb, Callback): cb = [cb]
         for i in cb: i.attach_default(self)
         self.default_cbs.extend(cb)
@@ -321,7 +321,7 @@ class EventModel(ABC):
         if isinstance(extra, Callback): extra = [extra]
         if isinstance(without, str): without = [without]
 
-        #обавляем и удаляем колбэки из модели внутри контекста
+        #add and remove cbs to the model inside the context
         if extra is not None: self.add(extra)
         if without is not None:
             removed: list[tuple[str, Callable | Callback, Callable | None, int | float, str, Hashable, ]] = self.remove_by_name(without)
@@ -384,7 +384,6 @@ class EventModel_DebugPerformance(EventModel, ABC):
         name: Optional[str] = None,
         ID: Optional[Hashable] = None,
     ):
-        """Призязка функции `fn` к методу `event`."""
         if event not in self.events: self.events[event] = Event_DebugPerformance(event)
         self.events[event].add(fn = fn, cond = cond, order = order, ID = ID, name=name)
 
@@ -397,7 +396,6 @@ class EventModel_DebugPerformance(EventModel, ABC):
         name: Optional[str] = None,
         ID: Optional[Hashable] = None,
     ):
-        """Призязка функции `fn` к методу по умолчанию `event`."""
         if event not in self.default_events: self.default_events[event] = Event_DebugPerformance(event)
         self.default_events[event].add(fn = fn, cond = cond, order = order, ID = ID, name=name)
 
