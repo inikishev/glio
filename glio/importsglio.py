@@ -19,6 +19,7 @@ from .python_tools import (
     flatten,
     perf_counter_context,
     find_file_containing,
+    Compose,
 )
 from .train import *
 from .plot import *
@@ -29,7 +30,7 @@ from . import nn as gnn
 from .helpers import conv_outsize, convtranpose_outsize
 from .transforms.intensity import norm, znorm, znormch, unnomalizech
 
-from torchzero.nn.quick import *
+from torchzero.nn.layers.sequential import *
 from torchzero.nn.layers.conv import *
 from torchzero.nn.layers.linear import *
 from torchzero.nn.cubes import *

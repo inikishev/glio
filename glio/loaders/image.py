@@ -1,63 +1,67 @@
 "img oladers "
 
+import logging
+import os
 import torch
 import torchvision.transforms.v2
-import logging
 
-INSTALLED_IMAGE_LIBS = []
-NOT_INSTALLED_IMAGE_LIBS = []
-try:
-    import torchvision.io
-    INSTALLED_IMAGE_LIBS.append('torchvision.io')
-except (ModuleNotFoundError, ImportError): NOT_INSTALLED_IMAGE_LIBS.append('torchvision.io')
-try:
-    import skimage.io
-    INSTALLED_IMAGE_LIBS.append('skimage.io')
-except (ModuleNotFoundError, ImportError): NOT_INSTALLED_IMAGE_LIBS.append('skimage.io')
-try:
-    import cv2
-    INSTALLED_IMAGE_LIBS.append('cv2')
-except (ModuleNotFoundError, ImportError): NOT_INSTALLED_IMAGE_LIBS.append('cv2')
-try:
-    import PIL.Image
-    INSTALLED_IMAGE_LIBS.append('PIL.Image')
-except (ModuleNotFoundError, ImportError): NOT_INSTALLED_IMAGE_LIBS.append('PIL.Image')
-try:
-    import pyvips # type: ignore
-    INSTALLED_IMAGE_LIBS.append('pyvips')
-    INSTALLED_IMAGE_LIBS.append('pyvips sequential')
-except (ModuleNotFoundError, ImportError, OSError): NOT_INSTALLED_IMAGE_LIBS.append('pyvips')
 
-def imread(path, lib= 'auto', libs = tuple(INSTALLED_IMAGE_LIBS), warn_errors = False):
-    path = path.replace('\\', '/')
+import numpy as np
 
-    PIL_transform = torchvision.transforms.v2.PILToTensor()
-    float_transform = torchvision.transforms.v2.ToDtype(torch.float32, scale=True)
-    if lib == 'auto':
-        for i in libs:
-            try:
-                return imread(path, lib=i, warn_errors=warn_errors)
-            except Exception as e:
-                if warn_errors: logging.warning(e)
-        else: raise ValueError(f'Could not read image at {path} with any of {libs}')
 
-    elif lib == 'PIL.Image': image = PIL_transform(PIL.Image.open(path)) # pyright:ignore[reportPossiblyUnboundVariable]
+import torchvision.io
+import matplotlib.pyplot as plt
+import skimage.io
+# import cv2
+import PIL.Image
 
-    elif lib == 'torchvision.io': image = torchvision.io.read_image(path)
+from ..transforms.intensity import norm
 
-    elif lib == 'skimage.io': image = torch.as_tensor(skimage.io.imread(path))# pyright:ignore[reportPossiblyUnboundVariable]
+def imreadtensor_torchvision(path:str) -> torch.Tensor:
+    return torchvision.io.read_image(path)
 
-    elif lib == 'cv2':
-        image = cv2.imread(path)# pyright:ignore[reportPossiblyUnboundVariable]
-        if image.ndim == 3:
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)# pyright:ignore[reportPossiblyUnboundVariable]
-        image = torch.as_tensor(image)
+def imread_skimage(path:str) -> np.ndarray:
+    return skimage.io.imread(path)
 
-    elif lib == 'pyvips': image = torch.as_tensor(pyvips.Image.new_from_file(path))# pyright:ignore[reportPossiblyUnboundVariable]
-    elif lib == 'pyvips sequential': image = torch.as_tensor(pyvips.Image.new_from_file(path, access='sequential'))# pyright:ignore[reportPossiblyUnboundVariable]
-    else: raise ValueError(f'Unknown image library {lib}')
-    if lib in ('cv2', 'skimage.io', 'pyvips', 'pyvips sequential') and image.dim() == 3: image = torch.permute(image, (2, 0, 1))
-    if image.dim() == 2: image = torch.unsqueeze(image, 0)
+def imreadtensor_skimage(path:str) -> torch.Tensor:
+    return torch.as_tensor(imread_skimage(path))
 
-    #print(f'{path}, {lib}, {image.shape}')
-    return float_transform(image)
+def imread_plt(path:str) -> np.ndarray:
+    return plt.imread(path)
+
+def imreadtensor_plt(path:str) -> torch.Tensor:
+    return torch.as_tensor(imread_plt(path))
+
+# def imread_cv2(path:str, bgr2rgb=True) -> np.ndarray:
+#     image = cv2.imread(path)
+#     if bgr2rgb and image.ndim == 3:
+#         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+#     return image
+
+# def imreadtensor_cv2(path:str, bgr2rgb=True) -> torch.Tensor:
+#     return torch.as_tensor(imread_cv2(path, bgr2rgb))
+
+def imread_pil(path:str) -> np.ndarray:
+    return np.array(PIL.Image.open(path))
+
+def imreadtensor_pil(path:str) -> torch.Tensor:
+    return torch.as_tensor(imread_pil(path))
+
+def imread(path:str) -> np.ndarray:
+    try: return imread_plt(path)
+    except Exception:
+        try: return imread_skimage(path)
+        except Exception:
+            # try: return imread_cv2(path)
+            # except Exception:
+                return imread_pil(path)
+
+def imreadtensor(path:str):
+    if path.lower().endswith(('jpg', 'jpeg', 'png', 'gif')): return imreadtensor_torchvision(path)
+    else: return torch.as_tensor(imread(path))
+
+def imwrite(x:np.ndarray | torch.Tensor, outfile:str, mkdir=False, normalize=True, compression = 9, optimize=True):
+    if mkdir and not os.path.exists(os.path.dirname(outfile)): os.mkdir(os.path.dirname(outfile))
+    if isinstance(x, torch.Tensor): x = x.detach().cpu().numpy()
+    if normalize: x = norm(x, 0, 255).astype(np.uint8) # type:ignore
+    PIL.Image.fromarray(x).save(outfile, optimize=optimize, compress_level=compression)

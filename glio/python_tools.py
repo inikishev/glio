@@ -19,9 +19,10 @@ class HasGetItemInt(Protocol):
     def __getitem__(self, __key:int) -> Any: ...
 
 SupportsIter = Iterable | HasGetItemInt
+"""Actually working type hint for anything that is iterable."""
 
 def isiterable(x:Any) -> bool:
-    """Better than `isinstance(x, Iterable)` but I don't remember why.
+    """In some specific case this is better than `isinstance(x, Iterable)` but I don't remember why.
 
     Args:
         x (Any): _description_
@@ -41,7 +42,7 @@ def isiterable(x:Any) -> bool:
 def hasgetitem(x:Any) -> bool: return hasattr(x, '__getitem__')
 
 def ismapping(x:Any) -> bool:
-    """Better than `isinstance(x, Mapping)` but I don't remember why.
+    """In some specific case this is better than `isinstance(x, Mapping)` but I don't remember why.
 
     Args:
         x (Any): _description_
@@ -732,35 +733,36 @@ def rename_dict_keys_(d:dict, keys:dict[Any,Any], allow_missing=False) -> None:
             if allow_missing: continue
             else: raise KeyError(f'key {k} not found in dict')
         d[v] = d.pop(k)
-        d[v] = d.pop(k)
 
-def rename_dict_key_contains_(d:dict, key:Any, new_key:Any) -> None:
+def rename_dict_key_contains_(d:dict, contains:Any, new_key:Any) -> None:
+    """Rename first key that contains `contains` substring to `new_key`.
+
+    Args:
+        d (dict): _description_
+        contains (Any): _description_
+        new_key (Any): _description_
+    """
     for k in d:
-        if key in k:
+        if contains in k:
             d[new_key] = d.pop(k)
             return
 
-def rename_dict_key_contains(d:dict, key:Any, new_key:Any) -> dict:
+def rename_dict_key_contains(d:dict, contains:Any, new_key:Any) -> dict:
+    """Rename first key that contains `contains` substring to `new_key`.
+
+    Args:
+        d (dict): _description_
+        contains (Any): _description_
+        new_key (Any): _description_
+
+    Returns:
+        dict: _description_
+    """
     d = d.copy()
-    rename_dict_key_contains_(d, key, new_key)
+    rename_dict_key_contains_(d, contains, new_key)
     return d
 
 class ImpossibleException(Exception): pass
-
-
-def __cat(iterable, value):
-    for seq in iterable:
-        yield [value] + seq
-
-def __unsqueeze(iterable):
-    for i in iterable: yield [i]
-
-def icartesian(iterables):
-    if len(iterables) == 1:
-        yield from __unsqueeze(iterables[0])
-    for seq in iterables:
-        for val in seq:
-            yield from __cat(iterable=icartesian(iterables[1:]), value=val)
 
 
 def sequence_to_markdown(s:Sequence, keys:Optional[Sequence] = None, keys_from_s = False, transpose=False) -> str:
@@ -785,3 +787,43 @@ def sequence_to_markdown(s:Sequence, keys:Optional[Sequence] = None, keys_from_s
         md += '| ' + ' | '.join([str(v) for v in row]) + ' |\n'
 
     return md
+
+__valid_fname_chars = frozenset("-_.()")
+def is_valid_fname(string:str):
+    if len(string) == 0: return False
+    return all([c in __valid_fname_chars or c.isalnum() for c in string])
+
+def to_valid_fname(string:str, fallback = '-', empty_fallback = 'empty', maxlen = 127):
+    """Makes sure filename doesn't have forbidden characters and isn't empty or too long,
+    this does not ensure a valid filename as there are a lot of other rules,
+    but does a fine job most of the time.
+
+    Args:
+        string (str): _description_
+        fallback (str, optional): _description_. Defaults to '-'.
+        empty_fallback (str, optional): _description_. Defaults to 'empty'.
+        maxlen (int, optional): _description_. Defaults to 127.
+
+    Returns:
+        _type_: _description_
+    """
+    if len(string) == 0: return empty_fallback
+    return ''.join([(c if c in __valid_fname_chars or c.isalnum() else fallback) for c in string[:maxlen]])
+
+def to_valid_varname(string:str, fallback = '_', empty_fallback = 'empty', firstdigit_fallback = 'd', maxlen = None):
+    """Turn arbitrary string to a valid python variable name.
+
+    Args:
+        string (str): _description_
+        fallback (str, optional): _description_. Defaults to '_'.
+        empty_fallback (str, optional): _description_. Defaults to 'empty'.
+        firstdigit_fallback (str, optional): _description_. Defaults to 'd'.
+        maxlen (_type_, optional): _description_. Defaults to None.
+
+    Returns:
+        _type_: _description_
+    """
+    if len(string) == 0: return empty_fallback
+    name =  ''.join([(c if c == '_' or c.isalnum() else fallback) for c in string[:maxlen]])
+    if name[0].isdigit(): name = f'{firstdigit_fallback}{name}'
+    return name

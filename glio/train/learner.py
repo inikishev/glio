@@ -171,8 +171,8 @@ class Learner(EventModel):
         self.event("after_any_batch")
         if self.status == "train": self.total_batch += 1
 
-    def inference(self, batch, to_cpu = True):
-        self.status = "inference"
+    def inference(self, batch, to_cpu = True, status = 'inference'):
+        if status is not None: self.status = status
         return self.event("inference", batch, to_cpu)[-1]
 
     def one_epoch(self, dl: torch.utils.data.DataLoader | SupportsIter, train=True):
@@ -471,7 +471,7 @@ callbacks:
         accelerator = None,
         device = None,
         logger = None,
-        default_cbs: Optional[Iterable[Callback]] = None,
+        default_cbs: Optional[Iterable[Callback]] = DEFAULT_CBS,
         state_dict_load_fn = _load_torch_dill,
         object_load_fn = _load_joblib,
         warn = True,
@@ -525,19 +525,21 @@ callbacks:
         # load callbacks
         if cbs is None:
             cbs = []
-            for cb in os.listdir(os.path.join(dir, "cbs")):
-                filename = os.path.join(dir, "cbs", cb)
-                try: cbs.append(object_load_fn(filename))
-                except Exception as e:
-                    if warn: print(f"Failed to load callback {cb}:\n{e}")
+            if os.path.isdir(os.path.join(dir, "cbs")):
+                for cb in os.listdir(os.path.join(dir, "cbs")):
+                    filename = os.path.join(dir, "cbs", cb)
+                    try: cbs.append(object_load_fn(filename))
+                    except Exception as e:
+                        if warn: print(f"Failed to load callback {cb}:\n{e}")
 
         if default_cbs is None:
             default_cbs = []
-            for cb in os.listdir(os.path.join(dir, "default_cbs")):
-                filename = os.path.join(dir, "default_cbs", cb)
-                try: default_cbs.append(object_load_fn(filename))
-                except Exception as e:
-                    if warn: print(f"Failed to load default callback {cb}:\n{e}")
+            if os.path.isdir(os.path.join(dir, "cbs")):
+                for cb in os.listdir(os.path.join(dir, "default_cbs")):
+                    filename = os.path.join(dir, "default_cbs", cb)
+                    try: default_cbs.append(object_load_fn(filename))
+                    except Exception as e:
+                        if warn: print(f"Failed to load default callback {cb}:\n{e}")
 
         # set all attributes
         self.clear()
@@ -560,7 +562,7 @@ callbacks:
         accelerator = None,
         device = None,
         logger = None,
-        default_cbs: Optional[Iterable[Callback]] = None,
+        default_cbs: Optional[Iterable[Callback]] = DEFAULT_CBS,
         state_dict_load_fn = _load_torch_dill,
         object_load_fn = _load_joblib,
         warn = True,

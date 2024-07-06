@@ -47,3 +47,12 @@ class SetSchedulerCB(CBContext):
 
     def exit(self, learner: "Learner"):
         learner.scheduler = self.backup
+
+class SetStatusCB(CBContext):
+    def __init__(self, status): 
+        self.status = status
+    def enter(self, learner: Learner):
+        self.status_backup = learner.status
+        learner.status = self.status
+    def exit(self, learner: Learner):
+        learner.status = self.status_backup

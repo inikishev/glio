@@ -1,15 +1,22 @@
 "Stuff that uses `register_forward_hook` and `register_backward_hook`"
+import os
 import torch
+import numpy as np
+from PIL import Image
 from .Learner import Learner
-from ..design.EventModel import CBContext
+from ..design.EventModel import CBContext, CBMethod
 from . hooks_base import LearnerForwardHook, LearnerBackwardHook
 from ..torch_tools import is_container
+from ..transforms.intensity import norm
+from ..python_tools import to_valid_fname
+from ..loaders.image import imwrite
 
 __all__ = [
     "LogLayerSignalDistributionCB",
     "LogLayerSignalHistorgramCB",
     "LogLayerGradDistributionCB",
     "LogLayerGradHistorgramCB",
+    'SaveForwardChannelImagesCB'
 ]
 
 
@@ -87,3 +94,57 @@ class LogLayerGradHistorgramCB(LearnerBackwardHook, CBContext):
                 else: r = self.range
                 hist = grad_output[0].float().histc(self.bins, 0 - r, 0+r)
                 learner.log(f'{name} output grad histogram', hist)
+
+
+def _save_3D_slices(x:torch.Tensor, dir:str, mkdir=True, max_numel = 1024 * 1024, max_ch = 32):
+    x = x[0]
+    if x.ndim not in (2, 3): return
+    if x.ndim == 2:
+        if x.numel() > max_numel: return
+        if mkdir and not os.path.exists(dir): os.mkdir(dir)
+        imwrite(x, outfile=os.path.join(dir, f'2D {tuple(x.shape)}.jpg'), normalize=True, optimize=True, compression=9)
+
+    elif x.ndim == 3:
+        if x[0].numel() > max_numel: return
+        if mkdir and not os.path.exists(dir): os.mkdir(dir)
+        numpyx: np.ndarray = x.detach().cpu().numpy()
+        for i,sl in enumerate(numpyx[:max_ch]):
+            imwrite(sl, outfile=os.path.join(dir, f'{i}.jpg'), normalize=True, optimize=True, compression=9)
+
+class SaveForwardChannelImagesCB(LearnerForwardHook, CBMethod):
+    def __init__(self, inputs, dir = 'forward channels', mkdir = True, filt = lambda x: not is_container(x),):
+        CBMethod.__init__(self)
+        LearnerForwardHook.__init__(self, filt=filt)
+
+        self.inputs = inputs
+        self.dir = dir
+        self.mkdir = mkdir
+        self.workdir = ''
+        self.cur_dir = ''
+        self.cur_iter = 1
+        self.cur_module = 1
+
+        self.saved_modules = set()
+
+    def after_test_epoch(self, learner:Learner):
+        status = learner.status
+        learner.inference(self.inputs, to_cpu = False, status="SaveSignalImagesCB")
+        learner.status = status
+
+    def __call__(self, learner: Learner, name: str, module: torch.nn.Module, inputs: tuple[torch.Tensor], outputs: torch.Tensor):
+        if learner.status == 'SaveSignalImagesCB':
+            if name in self.saved_modules:
+                self.cur_iter += 1
+                self.cur_module = 1
+                self.saved_modules = set()
+
+            if self.cur_iter == 1: self.workdir = learner.get_workdir(self.dir, self.mkdir)
+            if self.cur_module == 1:
+                self.cur_dir = os.path.join(self.workdir, f'{self.cur_iter} - {learner.total_epoch} {learner.total_batch}')
+                if not os.path.exists(self.cur_dir): os.mkdir(self.cur_dir)
+                # save inputs
+                _save_3D_slices(inputs[0], os.path.join(self.cur_dir, '0 - inputs'))
+
+            _save_3D_slices(outputs, os.path.join(self.cur_dir, f'{to_valid_fname(name)} {tuple(outputs.shape)}'))
+            self.saved_modules.add(name)
+            self.cur_module += 1

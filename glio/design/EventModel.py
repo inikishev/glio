@@ -39,9 +39,10 @@ class Callback(ABC):
     @final
     @contextmanager
     def context(self, model: "EventModel"):
-        self.attach(model)
-        yield
-        model.remove(self)
+        try:
+            self.attach(model)
+            yield
+        finally: model.remove(self)
 
 class CBEvent(Callback, ABC):
     """Attaches to method `event`, requires `__call__`."""
@@ -350,16 +351,18 @@ class EventModel(ABC):
     @final
     @contextmanager
     def extra(self, callbacks: Callback | Iterable[Callback]):
-        self.add(callbacks)
-        yield
-        self.remove(callbacks)
+        try:
+            self.add(callbacks)
+            yield
+        finally: self.remove(callbacks)
 
     @final
     @contextmanager
     def without(self, callbacks: str | Iterable[str]):
         removed: list[tuple[str, Callable | Callback, Callable | None, int | float, str, Hashable, ]] = self.remove_by_name(callbacks)
-        yield
-        for i in removed: self.attach(*i)
+        try: yield
+        finally:
+            for i in removed: self.attach(*i) # type:ignore
 
 class Event_DebugPerformance(Event):
     def __init__(self, event: str):
