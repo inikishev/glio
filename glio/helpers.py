@@ -70,22 +70,29 @@ def find_samesize_params(
     order=("stride", "padding", "output_padding", "kernel_size", "dilation"),
     maxvalue = 10,
 ):
-    """Horrible...
+    """    Horrible...
+
+    This function finds the parameters that result in the output size being
+    the same as the input size after a convolution operation.
 
     Args:
-        kernel_size (Optional[int]): _description_
-        stride (Optional[int]): _description_
-        padding (Optional[int], optional): _description_. Defaults to None.
-        output_padding (Optional[int], optional): _description_. Defaults to None.
-        dilation (Optional[int], optional): _description_. Defaults to 1.
-        order (tuple, optional): _description_. Defaults to ("stride", "padding", "output_padding", "kernel_size", "dilation").
-        maxvalue (int, optional): _description_. Defaults to 10.
-
-    Raises:
-        ValueError: _description_
+        kernel_size (Optional[int]): The size of the kernel for convolution.
+        stride (Optional[int]): The stride value for convolution.
+        padding (Optional[int]?): The padding value for convolution. Defaults to None.
+        output_padding (Optional[int]?): The output padding value. Defaults to None.
+        dilation (Optional[int]?): The dilation value for convolution. Defaults to 1.
+        order (tuple?): The order in which parameters are considered. Defaults to ("stride",
+            "padding", "output_padding", "kernel_size", "dilation").
+        maxvalue (int?): The maximum value to consider for parameter combinations. Defaults to
+            10.
 
     Returns:
-        _type_: _description_
+        dict: A dictionary containing the valid combination of parameters that result
+            in the desired output size.
+
+    Raises:
+        ValueError: Raised when no valid combination of parameters results in the desired
+            output size.
     """
     kwargs = OrderedDict(
         in_size=(96, 96),

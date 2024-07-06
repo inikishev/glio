@@ -10,8 +10,8 @@ def clean_ipython_hist():
     """    Clean up IPython history by removing input history and variables.
 
     This function cleans up the IPython history by removing input history
-    and variables stored in the user namespace.  Source: ... (idk but I
-    found it from fastai)
+    and variables stored in the user namespace. Source: ... (idk but I found
+    it from fastai)
     """
     # Code in this function mainly copied from IPython source
     if  'get_ipython' not in globals(): return
@@ -27,11 +27,12 @@ def clean_ipython_hist():
     hm._i = hm._ii = hm._iii = hm._i00 =  ''#pylint:disable=W0212
 
 def clean_tb():
-    """Clean up the traceback information stored in the sys module.
+    """    Clean up the traceback information stored in the sys module.
 
     This function clears the frames from the last traceback and removes the
     last_type, last_value, and last_traceback attributes from the sys module
     if they exist.
+
 
     Note:
         This function is based on the implementation by Piotr Czapla.
@@ -44,7 +45,7 @@ def clean_tb():
     if hasattr(sys, 'last_type'): delattr(sys, 'last_type')
     if hasattr(sys, 'last_value'): delattr(sys, 'last_value')
 def clean_mem():
-    """Clean memory by clearing traceback, IPython history, and garbage
+    """    Clean memory by clearing traceback, IPython history, and garbage
     collection.
 
     This function cleans the traceback, IPython history, and performs
@@ -61,7 +62,7 @@ def clean_mem():
 
 
 def is_jupyter():
-    """Check if the code is running in a Jupyter environment.
+    """    Check if the code is running in a Jupyter environment.
 
     This function checks the type of the IPython shell to determine if it is
     running in a Jupyter environment.
@@ -81,7 +82,7 @@ def is_jupyter():
         return False
 
 def isnotebook():
-    """Check if the code is running in a Jupyter notebook or IPython terminal.
+    """    Check if the code is running in a Jupyter notebook or IPython terminal.
 
     This function checks the type of IPython shell to determine if the code
     is running in a Jupyter notebook or IPython terminal.
@@ -102,7 +103,7 @@ def isnotebook():
         return False      # Probably standard Python interpreter
 
 def markdown_if_jupyter(string):
-    """Display markdown string if running in a Jupyter environment.
+    """    Display markdown string if running in a Jupyter environment.
 
     This function checks if the code is running in a Jupyter environment. If
     it is, it displays the provided markdown string.
@@ -122,7 +123,7 @@ def markdown_if_jupyter(string):
     else: return string
 
 def show_slices(sliceable):
-    """Display interactive slices of a multidimensional array.
+    """    Display interactive slices of a multidimensional array.
 
     This function displays interactive slices of a multidimensional array
     using ipywidgets and qimshow.
@@ -138,7 +139,7 @@ def show_slices(sliceable):
     kwargs = {f"s{i}":(0,v-1) for i,v in enumerate(shape(sliceable)[:-2])}
     stats = dict(orig_shape = shape(sliceable))
     def f(color, **kwargs):
-        """Perform a series of operations on a sliceable object based on the
+        """        Perform a series of operations on a sliceable object based on the
         provided color and keyword arguments.
 
         Args:
@@ -159,13 +160,17 @@ def show_slices(sliceable):
     return interact(f, color=False, **kwargs)
 
 def show_slices_arr(sliceable):
-    """Display interactive slices of a sliceable object.
+    """    Display interactive slices of a sliceable object.
 
     This function takes a sliceable object, such as an image or a volume,
     and displays interactive slices using ipywidgets.
 
     Args:
         sliceable: A sliceable object that can be converted to a numpy array for display.
+
+
+    Note:
+        The 'sliceable' variable is assumed to be defined in the outer scope.
     """
 
     from .plot import qimshow
@@ -178,7 +183,7 @@ def show_slices_arr(sliceable):
     permute = " ".join([str(i) for i in range(len(kwargs)+2)])
     stats = dict(orig_shape = sliceable.shape, dtype=sliceable.dtype, min=sliceable.min(), max=sliceable.max(), mean=sliceable.mean(), std=sliceable.std())
     def f(color, permute:str,**kwargs):
-        """Perform operations on a sliceable array based on color and permutation.
+        """        Perform operations on a sliceable array based on color and permutation.
 
         This function takes a sliceable array and performs operations based on
         the color flag and permutation provided. It transposes the sliceable
@@ -209,7 +214,7 @@ def show_slices_arr(sliceable):
 
 
 def sequence_to_table(s:Sequence, keys:Optional[Sequence] = None, keys_from_s = False, transpose=False):
-    """Display a sequence as a table in Jupyter notebook using Markdown format.
+    """    Display a sequence as a table in Jupyter notebook using Markdown format.
 
     Args:
         s (Sequence): The input sequence to be displayed as a table.
@@ -217,7 +222,6 @@ def sequence_to_table(s:Sequence, keys:Optional[Sequence] = None, keys_from_s = 
         keys_from_s (bool): Flag to indicate whether keys should be extracted from the input
             sequence.
         transpose (bool): Flag to indicate if the table should be transposed.
-
 
     Note:
         This function requires IPython and python_tools module to be imported.
