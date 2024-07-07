@@ -1,5 +1,5 @@
 "metrics"
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 import numpy as np
@@ -20,16 +20,16 @@ __all__ = [
 class CBMetric(Callback, ABC):
     metric:str
 
-    def __init__(
+    def __init__( # pylint:disable=W0102
         self,
         train=True,
         test=True,
-        aggregate_func: Callable = np.mean,
+        aggregate_funcs: dict[str, Callable] = {"mean": np.mean, "min": np.min, "max": np.max, "median": np.median},
         train_cond: Optional[Callable] = None,
         test_cond: Optional[Callable] = None,
     ):
         self.train, self.test = train, test
-        self.aggregate_func = aggregate_func
+        self.aggregate_funcs = aggregate_funcs.copy()
         self.train_cond, self.test_cond = train_cond, test_cond
 
         self.test_metrics = []
@@ -49,7 +49,8 @@ class CBMetric(Callback, ABC):
 
     def epoch(self, learner: "Learner"):
         if len(self.test_metrics) > 0:
-            learner.log(f"test {self.metric}", self.aggregate_func(self.test_metrics))
+            for name, func in self.aggregate_funcs.items():
+                learner.log(f"test {self.metric} {name}", func(self.test_metrics))
             self.test_metrics = []
 
     def attach(self, learner:"EventModel"):
@@ -67,7 +68,7 @@ class LogLossCB(CBMetric):
     """loss"""
     metric = "loss"
     def __init__(self):
-        super().__init__(train = True, test = True, aggregate_func = np.mean)
+        super().__init__(train = True, test = True)
     def __call__(self, learner: Learner): 
         if isinstance(learner.loss, torch.Tensor): return float(learner.loss.detach().cpu())
         return learner.loss
@@ -75,7 +76,7 @@ class LogLossCB(CBMetric):
 class LogLearnerFnCB(CBMetric):
     """called as: `fn(learner: Learner)`"""
     def __init__(self, fn:Callable[[Learner], Any], train=True, test=True, step=1, name=None):
-        super().__init__(train = train, test = test, aggregate_func = np.mean, train_cond=None if step<=1 else lambda _,i: i%step==0)
+        super().__init__(train = train, test = test, train_cond=None if step<=1 else lambda _,i: i%step==0)
         self.fn = fn
         metric = fn.__name__ if hasattr(fn, "__name__") else type_str(fn)
         if name is None: self.metric = f"fn - {metric}"
@@ -87,7 +88,7 @@ class LogLearnerFnCB(CBMetric):
 class LogPredsTargetsFnCB(CBMetric):
     """called as: `fn(preds, targets)`"""
     def __init__(self, fn:Callable[[Any, Any], Any], train=True, test=True,  step=1, name=None):
-        super().__init__(train = train, test = test, aggregate_func = np.mean, train_cond=None if step<=1 else lambda _,i: i%step==0)
+        super().__init__(train = train, test = test, train_cond=None if step<=1 else lambda _,i: i%step==0)
         self.fn = fn
         metric = fn.__name__ if hasattr(fn, "__name__") else type_str(fn)
         if name is None: self.metric = f"fn - {metric}"
@@ -99,7 +100,7 @@ class LogPredsTargetsFnCB(CBMetric):
 class MetricAccuracyCB(CBMetric):
     """accuracy"""
     def __init__(self, argmax_preds = True, argmax_targets = False, ignore_bg = False, step=1, name='accuracy'):
-        super().__init__(train = True, test = True, aggregate_func = np.mean)
+        super().__init__(train = True, test = True)
         self.argmax_preds, self.argmax_targets = argmax_preds, argmax_targets
         self.ignore_bg = ignore_bg
         self.train_cond = None if step<=1 else lambda _, i: i%step==0

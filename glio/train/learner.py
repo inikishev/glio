@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 from typing import Optional, Any, TYPE_CHECKING, final
 import os, pathlib, shutil
 from datetime import datetime
-import statistics
 
 import torch, torch.utils.data
 import numpy as np

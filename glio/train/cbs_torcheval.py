@@ -1,4 +1,3 @@
-import statistics
 
 import torch.nn.functional as F
 import torcheval.metrics.functional as tmf
@@ -16,7 +15,7 @@ __all__ = [
 ]
 class TorchevalPrecisionCB(CBMetric):
     def __init__(self, num_classes, argmax_preds = True, argmax_targets = False, average='micro', step=1, name="precision"):
-        super().__init__(train = True, test = True, aggregate_func = statistics.mean)
+        super().__init__(train = True, test = True)
         self.num_classes = num_classes
         self.argmax_preds, self.argmax_targets = argmax_preds, argmax_targets
         self.train_cond = None if step<=1 else lambda _, i: i%step==0
@@ -32,7 +31,7 @@ class TorchevalPrecisionCB(CBMetric):
 
 class TorchevalRecallCB(CBMetric):
     def __init__(self, num_classes, argmax_preds = True, argmax_targets = False, average='micro', step=1, name="recall"):
-        super().__init__(train = True, test = True, aggregate_func = statistics.mean)
+        super().__init__(train = True, test = True)
         self.num_classes = num_classes
         self.argmax_preds, self.argmax_targets = argmax_preds, argmax_targets
         self.train_cond = None if step<=1 else lambda _, i: i%step==0
@@ -48,7 +47,7 @@ class TorchevalRecallCB(CBMetric):
 
 class TorchevalF1CB(CBMetric):
     def __init__(self, num_classes, argmax_preds = True, argmax_targets = False, average='micro', step=1, name="f1"):
-        super().__init__(train = True, test = True, aggregate_func = statistics.mean)
+        super().__init__(train = True, test = True)
         self.num_classes = num_classes
         self.argmax_preds, self.argmax_targets = argmax_preds, argmax_targets
         self.train_cond = None if step<=1 else lambda _, i: i%step==0
@@ -65,7 +64,7 @@ class TorchevalF1CB(CBMetric):
 
 class TorchevalAURPCCB(CBMetric):
     def __init__(self, num_classes, argmax_targets = False, average='macro', step=1, teststep = 1, name="average precision"):
-        super().__init__(train = True, test = True, aggregate_func = statistics.mean)
+        super().__init__(train = True, test = True)
         self.num_classes = num_classes
         self.argmax_targets = argmax_targets
         self.train_cond = None if step<=1 else lambda _, i: i%step==0
@@ -81,7 +80,7 @@ class TorchevalAURPCCB(CBMetric):
 
 class TorchevalRocAucCB(CBMetric):
     def __init__(self, num_classes, argmax_targets = False, average='macro', step=1,teststep = 1, name="roc auc"):
-        super().__init__(train = True, test = True, aggregate_func = statistics.mean)
+        super().__init__(train = True, test = True)
         self.num_classes = num_classes
         self.argmax_targets = argmax_targets
         self.train_cond = None if step<=1 else lambda _, i: i%step==0

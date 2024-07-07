@@ -1,4 +1,3 @@
-import statistics
 from collections.abc import Sequence
 import numpy as np
 import torch
@@ -31,7 +30,7 @@ class MONAIDiceCB(CBMetric):
             step (int, optional): _description_. Defaults to 1.
             name (str, optional): _description_. Defaults to "dice".
         """
-        super().__init__(train = True, test = True, aggregate_func = statistics.mean)
+        super().__init__(train = True, test = True)
         self.num_classes = num_classes
         self.argmax_preds, self.argmax_targets = argmax_preds, argmax_targets
         self.include_background = not ignore_bg
@@ -47,7 +46,7 @@ class MONAIDiceCB(CBMetric):
 
 class MONAIGDiceCB(CBMetric):
     def __init__(self, num_classes, argmax_preds = True, argmax_targets = False, ignore_bg = False, step=1, name="generalized dice"):
-        super().__init__(train = True, test = True, aggregate_func = statistics.mean)
+        super().__init__(train = True, test = True)
         self.num_classes = num_classes
         self.argmax_preds, self.argmax_targets = argmax_preds, argmax_targets
         self.include_background = not ignore_bg
@@ -74,7 +73,7 @@ class MONAIIoUCB(CBMetric):
             step (int, optional): _description_. Defaults to 1.
             name (str, optional): _description_. Defaults to "iou".
         """
-        super().__init__(train = True, test = True, aggregate_func = statistics.mean)
+        super().__init__(train = True, test = True)
         self.num_classes = num_classes
         self.argmax_preds, self.argmax_targets = argmax_preds, argmax_targets
         self.include_background = not ignore_bg
@@ -93,7 +92,7 @@ class MONAIIoUCB(CBMetric):
 
 class MONAIRocAucCB(CBMetric):
     def __init__(self, num_classes, to_onehot_targets = False, ignore_bg = False, average='macro', step=1, teststep = 1, name="roc auc"):
-        super().__init__(train = True, test = True, aggregate_func = statistics.mean)
+        super().__init__(train = True, test = True)
         self.num_classes = num_classes
         self.to_onehot_targets = to_onehot_targets
         self.ignore_bg = ignore_bg
