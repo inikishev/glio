@@ -14,9 +14,9 @@ __all__ = [
     'visualize_brats_reference',
     'visualize_brats_reference_all',
     'SaveReferenceVisualizationsAfterEachEpochCB',
-    
-    
+
 ]
+
 # All the imaging datasets have been annotated manually, by one to four raters,
 # following the same annotation protocol, and their annotations were approved by experienced neuroradiologists.
 # Annotations comprise the enhancing tissue (ET — label 3),
@@ -99,17 +99,18 @@ def visualize_brats_reference(idx, inferer, around=1, overlap=0.75, expand=None,
     )
 
 def visualize_brats_reference_all(inferer, around=1, overlap=0.75, expand=None, save=False, folder='reference preds', prefix=''):
-    for i in range(len(brats_gli_references)): 
+    for i in range(len(brats_gli_references)):
         visualize_brats_reference(i, inferer=inferer, around=around, overlap=overlap, expand=expand, save=save, folder=folder,prefix=prefix)
 
 class SaveReferenceVisualizationsAfterEachEpochCB(CBMethod):
     order = 1
-    def __init__(self, folder, brats=tuple(range(len(brats_gli_references)))):
+    def __init__(self, folder='runs', brats=tuple(range(len(brats_gli_references)))):
         self.folder=folder
         if not os.path.exists(folder): os.mkdir(folder)
         self.brats = brats
 
     def after_test_epoch(self, learner:Learner):
-        folder = learner.get_workdir(self.folder)
+        folder = os.path.join(learner.get_workdir(self.folder), 'reference preds')
+        if not os.path.exists(folder): os.mkdir(folder)
         prefix=f'{learner.total_epoch} {float(learner.logger.last("test loss")):.4f} '
         for i in self.brats: visualize_brats_reference(i, learner.inference, save=True, folder=folder, prefix=prefix)

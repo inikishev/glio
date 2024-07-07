@@ -16,6 +16,18 @@ import torch
 from torchvision.utils import make_grid
 
 from ._common import _parse_plotdata, _img_norm, _ax_match_target, _ax_get_array, _img_norm_tensor
+
+__all__ = [
+    'Figure',
+    'qimshow',
+    'qimshow_batch',
+    'qlinechart',
+    'qplot',
+    'qpath10d',
+    'qpath2d',
+    'qimshow_grid'
+]
+
 class Plot:
     def __init__(self, tfms:list[Callable]):
         self.tfms:list[Callable] = tfms

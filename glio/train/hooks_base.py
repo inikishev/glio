@@ -77,7 +77,7 @@ class BackwardHook(ABC):
 class LearnerBackwardHook(ABC):
     """`_hook` must be a callable with the following arguments
     ```python
-    _hook(learner: Learner, name: str, grad_input: torch.nn.Module, input: tuple[torch.Tensor], grad_output: tuple[torch.Tensor])
+    _hook(learner: Learner, name: str, grad_input: torch.nn.Module, grad_output: tuple[torch.Tensor])
     ```"""
     def __init__(self, filt: Optional[Callable]):
         self.filt = filt

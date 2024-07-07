@@ -13,7 +13,7 @@ class SaveBestCB(CBEvent):
     event = "after_test_epoch"
     def __init__(
         self,
-        dir="checkpoints",
+        dir="runs",
         keep_old = False,
         serialize=False,
         metrics: Mapping[str, str] = {"test loss": "low", "test accuracy": "high"},
@@ -33,7 +33,7 @@ class SaveBestCB(CBEvent):
 
     def __call__(self, learner: Learner):
         # make folders
-        checkpoint_path = learner.get_checkpoint_dir(self.dir)
+        checkpoint_path = f'{learner.get_epochbatch_dir(self.dir)}/checkpoint'
 
         # avoid saving multiple checkpoints if multiple metrics improved
         is_already_saved = False
@@ -51,7 +51,7 @@ class SaveBestCB(CBEvent):
                         # if not keep old, remove last checkpoint for this metric
                         if (not self.keep_old) and met in self.best_paths: shutil.rmtree(self.best_paths[met])
                         # save checkpoint
-                        if not is_already_saved: learner.checkpoint(dir = checkpoint_path, serialize=self.serialize)
+                        if not is_already_saved: learner.checkpoint(dir = checkpoint_path, serialize=self.serialize, mkdir=True)
                         # save new best value
                         self.best_metrics[met] = val
                         # save path to this metrics checkpoint
@@ -62,7 +62,7 @@ class SaveBestCB(CBEvent):
                         # if not keep old, remove last checkpoint for this metric
                         if (not self.keep_old) and met in self.best_paths: shutil.rmtree(self.best_paths[met])
                         # save checkpoint
-                        if not is_already_saved: learner.checkpoint(dir = checkpoint_path, serialize=self.serialize)
+                        if not is_already_saved: learner.checkpoint(dir = checkpoint_path, serialize=self.serialize, mkdir=True)
                         # save new best value
                         self.best_metrics[met] = val
                         # save path to this metrics checkpoint
@@ -71,10 +71,10 @@ class SaveBestCB(CBEvent):
 
 class SaveLastCB(CBEvent):
     event = "after_fit"
-    def __init__(self, dir = "checkpoints", serialize=False): #pylint:disable=W0102
+    def __init__(self, dir = "runs", serialize=False): #pylint:disable=W0102
         super().__init__()
         self.dir = dir
         self.serialize = serialize
 
     def __call__(self, learner: Learner):
-        learner.checkpoint(dir = learner.get_checkpoint_dir(self.dir), serialize=self.serialize)
+        learner.checkpoint(dir = f'{learner.get_epochbatch_dir(self.dir)}/checkpoint', serialize=self.serialize, mkdir=True)

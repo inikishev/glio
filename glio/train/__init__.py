@@ -1,4 +1,5 @@
 """Callbacks"""
+
 from .Learner import Learner, Learner_DebugPerformance
 from .cbs_set import *
 from .cbs_log import *
@@ -34,3 +35,8 @@ except ModuleNotFoundError: pass
 #     import hiddenlayer as __
 #     from .cbs_hiddenlayer import HLCanvas
 # except ModuleNotFoundError: pass
+
+import types # pylint:disable=C0411
+__all__ = [name for name, thing in globals().items() # type:ignore
+          if not (name.startswith('_') or isinstance(thing, types.ModuleType))]
+del types

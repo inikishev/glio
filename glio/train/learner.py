@@ -12,7 +12,7 @@ import numpy as np
 from ..design.EventModel import EventModel, EventModelWithPerformanceDebugging, Callback, CBCond, CBContext, CBEvent, CBMethod
 from ..logger import Logger
 from ..torch_tools import CUDA_IF_AVAILABLE, ensure_device, copy_state_dict
-from ..python_tools import SupportsIter, try_copy, type_str, get__name__, int_at_beginning
+from ..python_tools import SupportsIter, try_copy, type_str, get__name__, int_at_beginning, to_valid_fname
 
 from .cbs_default import (
     DefaultForwardCB,
@@ -608,7 +608,7 @@ callbacks:
     def get_workdir(self, dir, mkdir=True):
         """Returns path to working directory, and creates it if it doesn't exist.
 
-        Path is `{dir}/{self.name}/{run index} - {datetime}`, where `run index` is a number that automatically increments based on what indexes are already saved in the folder.
+        Path is `{dir}/{self.name} {run index} - {datetime}`, where `run index` is a number that automatically increments based on what indexes are already saved in the folder.
 
         If last `run index` folder is empty, it will be deleted and used.
         """
@@ -616,11 +616,8 @@ callbacks:
 
         # create the root directory
         if (not os.path.exists(dir)) and mkdir: os.mkdir(dir)
-        # create this learners directory
-        learner_dir = os.path.join(dir, self.name)
-        if not os.path.exists(learner_dir): os.mkdir(learner_dir)
-        # get all runs in the learner directory
-        runs: dict[int, str] = {int_at_beginning(i):i for i in os.listdir(learner_dir) if (os.path.isdir(i) and i[0].isnumeric())} # type:ignore
+        # get all runs in the root directory
+        runs: dict[int, str] = {int_at_beginning(i.replace(self.name, '')):i for i in os.listdir(dir) if (os.path.isdir(i) and i.replace(self.name, '')[0].isnumeric())} # type:ignore
         # if no runs, this is the 1st run
         if len(runs) == 0: run_index = 1
         else:
@@ -632,26 +629,34 @@ callbacks:
                 run_index = last
             # otherwise increment last run index
             else: run_index = last + 1
-
+        # create this learners directory
         now = datetime.now()
-        working_dir = os.path.join(learner_dir, f"{run_index} - {now.year}.{now.month}.{now.day} {now.hour}-{now.minute}")
-        if not os.path.exists(working_dir): os.mkdir(working_dir)
-        self.workdirs[dir] = working_dir
+        workdir = os.path.join(dir, f"{self.name} {run_index} - {now.year}.{now.month}.{now.day} {now.hour}-{now.minute}")
+        if not os.path.exists(workdir): os.mkdir(workdir)
+        self.workdirs[dir] = workdir
         return self.workdirs[dir]
-    
-    def get_checkpoint_dir(self, dir, mkdir = True):
-        workdir = self.get_workdir(dir, mkdir=mkdir)
-        checkpoint_name = f'{self.total_epoch} {self.total_batch}'
 
-        if "test loss" in self.logger:
-            checkpoint_name += f"; testloss={self.logger.last('test loss'):.5f}"
-        elif "train loss" in self.logger:
-            checkpoint_name += f"; trainloss={self.logger.last('train loss'):.5f}"
-        if "test accuracy" in self.logger:
-            checkpoint_name += f"; testacc={self.logger.last('test accuracy'):.5f}"
-        elif "train accuracy" in self.logger:
-            checkpoint_name += f"; trainacc={self.logger.last('train accuracy'):.5f}"
-        
+    def get_epochbatch_dir(self, dir, mkdir = True, metrics = ('test loss', 'test accuracy')):
+        """Return a directory for current epoch/batch - `{self.workdir}/{total epochs} {total batches} {metric details}`.
+
+        For example: `e5 b36385 test-loss_0.22640`
+
+        Workdir is `{dir}/{self.name} {run index} - {datetime}`
+
+        Args:
+            dir (_type_): _description_
+            mkdir (bool, optional): _description_. Defaults to True.
+
+        Returns:
+            _type_: _description_
+        """
+        workdir = self.get_workdir(dir, mkdir=mkdir)
+        checkpoint_name = f'e{self.total_epoch} b{self.total_batch}'
+
+        for metric in metrics:
+            if metric in self.logger:
+                checkpoint_name += f" {to_valid_fname(metric.replace(' ', '-'))}_{self.logger.last(metric):.5f}"
+
         checkpoint_path = os.path.join(workdir, checkpoint_name)
         if not os.path.exists(checkpoint_path): os.mkdir(checkpoint_path)
         return os.path.join(checkpoint_path)

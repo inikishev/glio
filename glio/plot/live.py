@@ -17,6 +17,9 @@ from IPython import display
 from ..torch_tools import seeded_randperm
 from ._common import _dict_update, _axplot, _axplot_update, _aximshow, _aximshow_update, _axpath10d, _axpath10d_update, _axpath2d, _axpath2d_update, _axscatter10d, _axscatter10d_update
 
+__all__ = [
+    "LiveFigure",
+    ]
 
 class LiveFigure:
     def __init__(self):

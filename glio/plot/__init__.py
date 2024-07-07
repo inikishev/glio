@@ -1,13 +1,7 @@
-__all__ = [
-    "Figure",
-    "qimshow",
-    "qimshow_batch",
-    "qlinechart",
-    "qplot",
-    "qpath10d",
-    "qpath2d",
-    "qimshow_grid",
-    "LiveFigure",
-]
-from .figure import Figure, qimshow, qimshow_batch, qlinechart, qplot, qpath10d, qpath2d, qimshow_grid
-from .live import LiveFigure
+from .figure import *
+from .live import *
+
+import types # pylint:disable=C0411
+__all__ = [name for name, thing in globals().items() # type:ignore
+          if not (name.startswith('_') or isinstance(thing, types.ModuleType))]
+del types

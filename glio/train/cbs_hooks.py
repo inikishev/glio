@@ -16,7 +16,8 @@ __all__ = [
     "LogLayerSignalHistorgramCB",
     "LogLayerGradDistributionCB",
     "LogLayerGradHistorgramCB",
-    'SaveForwardChannelImagesCB'
+    'SaveForwardChannelImagesCB',
+    'SaveBackwardChannelImagesCB',
 ]
 
 
@@ -81,8 +82,8 @@ class LogLayerGradHistorgramCB(LearnerBackwardHook, CBContext):
 
     def __call__(self, learner: Learner, name: str, module: torch.nn.Module, grad_input: tuple[torch.Tensor], grad_output: tuple[torch.Tensor]):
         if learner.status == "train" and learner.total_batch % self.step == 0:
-            if len(grad_input) > 1: print(f"okay so i forgot why exactly I left this print there but its for something that isnt supposed to happen and here is the info {name = } gradient grad_input {len(grad_input) = } tensors")
-            if len(grad_output) > 1: print(f"okay so i forgot why exactly I left this print there but its for something that isnt supposed to happen and here is the info {name = } gradient grad_output {len(grad_input) = } tensors")
+            if len(grad_input) > 1: print(f"`grad_input` is a tuple with length of more than 1!!! {name = } gradient grad_input {len(grad_input) = } tensors")
+            if len(grad_output) > 1: print(f"`grad_output` is a tuple with length of more than 1!!! {name = } gradient grad_output {len(grad_input) = } tensors")
             if grad_input[0] is not None:
                 if self.range is None: r = float(grad_input[0].abs().max().cpu().detach())
                 else: r = self.range
@@ -96,22 +97,22 @@ class LogLayerGradHistorgramCB(LearnerBackwardHook, CBContext):
                 learner.log(f'{name} output grad histogram', hist)
 
 
-def _save_3D_slices(x:torch.Tensor, dir:str, mkdir=True, max_numel = 1024 * 1024, max_ch = 32):
+def _save_3D_slices(x:torch.Tensor, dir:str, prefix = '', mkdir=True, max_numel = 1024 * 1024, max_ch = 32):
     x = x[0]
     if x.ndim not in (2, 3): return
     if x.ndim == 2:
         if x.numel() > max_numel: return
         if mkdir and not os.path.exists(dir): os.mkdir(dir)
-        imwrite(x, outfile=os.path.join(dir, f'2D {tuple(x.shape)}.jpg'), normalize=True, optimize=True, compression=9)
+        imwrite(x, outfile=os.path.join(dir, f'{prefix}2D.jpg'), normalize=True, optimize=True, compression=9)
 
     elif x.ndim == 3:
         if x[0].numel() > max_numel: return
         if mkdir and not os.path.exists(dir): os.mkdir(dir)
         numpyx: np.ndarray = x.detach().cpu().numpy()
         for i,sl in enumerate(numpyx[:max_ch]):
-            imwrite(sl, outfile=os.path.join(dir, f'{i}.jpg'), normalize=True, optimize=True, compression=9)
+            imwrite(sl, outfile=os.path.join(dir, f'{prefix}{i}.jpg'), normalize=True, optimize=True, compression=9)
 
-class SaveForwardChannelImagesCB(LearnerForwardHook, CBMethod):
+class SaveForwardChannelImagesSToseparateFoldersCB(LearnerForwardHook, CBMethod):
     def __init__(self, inputs, dir = 'forward channels', mkdir = True, filt = lambda x: not is_container(x),):
         CBMethod.__init__(self)
         LearnerForwardHook.__init__(self, filt=filt)
@@ -148,3 +149,95 @@ class SaveForwardChannelImagesCB(LearnerForwardHook, CBMethod):
             _save_3D_slices(outputs, os.path.join(self.cur_dir, f'{to_valid_fname(name)} {tuple(outputs.shape)}'))
             self.saved_modules.add(name)
             self.cur_module += 1
+
+
+class SaveForwardChannelImagesCB(LearnerForwardHook, CBMethod):
+    def __init__(self, inputs, dir = 'runs', mkdir = True, max_ch = 20, filt = lambda x: not is_container(x),):
+        CBMethod.__init__(self)
+        LearnerForwardHook.__init__(self, filt=filt)
+
+        self.inputs = inputs
+        self.dir = dir
+        self.mkdir = mkdir
+        self.max_ch = max_ch
+
+        self.workdir = ''
+        self.cur_prefix = ''
+        self.cur_iter = 1
+        self.cur_module = 1
+
+        self.saved_modules = set()
+
+    def after_test_epoch(self, learner:Learner):
+        status = learner.status
+        learner.inference(self.inputs, to_cpu = False, status="SaveForwardChannelImagesCB")
+        learner.status = status
+
+    def __call__(self, learner: Learner, name: str, module: torch.nn.Module, inputs: tuple[torch.Tensor], outputs: torch.Tensor):
+        if learner.status == 'SaveForwardChannelImagesCB':
+            if name in self.saved_modules:
+                self.cur_iter += 1
+                self.cur_module = 1
+                self.saved_modules = set()
+
+            if self.cur_iter == 1:
+                self.workdir = os.path.join(learner.get_workdir(self.dir, self.mkdir), 'forward channels')
+            if self.cur_module == 1:
+                self.cur_prefix = f'{self.cur_iter} - e{learner.total_epoch} b{learner.total_batch} c'
+                # save inputs
+                _save_3D_slices(inputs[0], os.path.join(self.workdir, '0 - inputs'), prefix=f'{self.cur_prefix}', max_ch=self.max_ch)
+
+            _save_3D_slices(outputs,
+                            dir = os.path.join(self.workdir, f'{to_valid_fname(name)} {tuple(outputs.shape)}'),
+                            prefix=f'{self.cur_prefix}',
+                            max_ch=self.max_ch,
+                            )
+            self.saved_modules.add(name)
+            self.cur_module += 1
+
+class SaveBackwardChannelImagesCB(LearnerBackwardHook, CBMethod):
+    def __init__(self, inputs, dir = 'runs', mkdir = True, max_ch = 20, filt = lambda x: not is_container(x),):
+        CBMethod.__init__(self)
+        LearnerBackwardHook.__init__(self, filt=filt)
+
+        self.inputs = inputs
+        self.dir = dir
+        self.mkdir = mkdir
+        self.max_ch = max_ch
+
+        self.workdir = ''
+        self.cur_prefix = ''
+        self.cur_iter = 1
+        self.cur_module = 1
+
+        self.saved_modules = set()
+
+    def after_test_epoch(self, learner:Learner):
+        status = learner.status
+        learner.inference(self.inputs, to_cpu = False, status="SaveBackwardChannelImagesCB")
+        learner.status = status
+
+    def __call__(self, learner: Learner, name: str, module: torch.nn.Module, grad_input: tuple[torch.Tensor], grad_output: tuple[torch.Tensor]):
+        if learner.status == 'SaveBackwardChannelImagesCB':
+            if name in self.saved_modules:
+                self.cur_iter += 1
+                self.cur_module = 1
+                self.saved_modules = set()
+
+            if self.cur_iter == 1:
+                self.workdir = os.path.join(learner.get_workdir(self.dir, self.mkdir), 'backward channels')
+            if self.cur_module == 1:
+                self.cur_prefix = f'{self.cur_iter} - e{learner.total_epoch} b{learner.total_batch} c'
+                # save inputs
+                if grad_input[0] is not None:
+                    _save_3D_slices(grad_input[0], os.path.join(self.workdir, '0 - grad inputs'), prefix=f'{self.cur_prefix}', max_ch=self.max_ch)
+
+            if grad_output[0] is not None:
+                _save_3D_slices(grad_output[0],
+                                dir = os.path.join(self.workdir, f'{to_valid_fname(name)} {tuple(grad_output[0].shape)}'),
+                                prefix=f'{self.cur_prefix}',
+                                max_ch=self.max_ch,
+                                )
+                self.saved_modules.add(name)
+                self.cur_module += 1
+

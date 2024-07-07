@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt, numpy as np, torch
 from ..plot import qimshow, qimshow_grid, Figure, qpath2d
 from ..python_tools import flexible_filter
 
+__all__ = [
+    'Logger',
+]
 class Logger:
     def __init__(self):
         self.logs: dict[str, dict[int, Any]] = {}

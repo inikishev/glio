@@ -4,6 +4,9 @@ from . import Logger
 from ..python_tools import listdir_fullpaths, reduce_dim, flexible_filter
 from ..plot import *
 
+__all__ = [
+    "Comparison"
+]
 def _loggers_plot(loggers, key, figsize=None, show=False, **kwargs):
     fig=Figure()
     fig.add()
@@ -20,7 +23,7 @@ class Comparison:
         self.loggers = loggers
 
     @classmethod
-    def from_checkpoint_folder(cls, path):
+    def from_checkpoint_folder_old(cls, path):
         loggers = {}
         for model in os.listdir(path):
             fullpath = os.path.join(path, model)
