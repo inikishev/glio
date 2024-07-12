@@ -14,10 +14,10 @@ from ..python_tools import type_str, get__name__
 __all__ = [
     "Cancel",
     "Callback",
-    "CBEvent",
-    "CBMethod",
-    "CBCond",
-    "CBContext",
+    "EventCallback",
+    "MethodCallback",
+    "ConditionCallback",
+    "BasicCallback",
     "EventModel",
     "EventModelWithPerformanceDebugging"
 ]
@@ -44,14 +44,14 @@ class Callback(ABC):
             yield
         finally: model.remove(self)
 
-class CBEvent(Callback, ABC):
+class EventCallback(Callback, ABC):
     """Attaches to method `event`, requires `__call__`."""
     event: str
 
     @final
-    def attach(self, model: "EventModel"): model.attach(event = self.event, fn = self)
+    def attach(self, model: "EventModel"): model._attach(event = self.event, fn = self)
     @final
-    def attach_default(self, model: "EventModel"): model.attach_default(event = self.event, fn = self)
+    def attach_default(self, model: "EventModel"): model._attach_default(event = self.event, fn = self)
 
 RESERVED_CALLBACK_ATTRIBUTES = (
     "attach",
@@ -72,7 +72,7 @@ RESERVED_CALLBACK_ATTRIBUTES = (
     "cbs"
 )
 
-class CBMethod(Callback, ABC):
+class MethodCallback(Callback, ABC):
     """Attaches to methods that have the same name as methods of this callback, unless reserved."""
     cond: Callable | None = None
     @final
@@ -83,8 +83,8 @@ class CBMethod(Callback, ABC):
                 method = getattr(self, attr_name)
                 if isinstance(method, MethodType):
                     counter += 1
-                    if default: model.attach_default(fn = method, event = attr_name, cond=self.cond, name=get__name__(self), ID=id(self))
-                    else: model.attach(event = attr_name, fn = method, cond=self.cond, name=get__name__(self), ID=id(self))
+                    if default: model._attach_default(fn = method, event = attr_name, cond=self.cond, name=get__name__(self), ID=id(self))
+                    else: model._attach(event = attr_name, fn = method, cond=self.cond, name=get__name__(self), ID=id(self))
         if counter == 0: logging.warning("There are no methods to attach in callback %s.", self)
     @final
     def attach(self, model: "EventModel"): self._attach(model,default=False)
@@ -92,7 +92,7 @@ class CBMethod(Callback, ABC):
     def attach_default(self, model: "EventModel"): self._attach(model, default=True)
 
 
-class CBCond(Callback, ABC):
+class ConditionCallback(Callback, ABC):
     """Attaches to methods with conditions that are specified by calling special methdos like `on`, `every`, `first`."""
     default_events: Iterable[tuple[str, Callable | None]] | Any = ()
 
@@ -103,15 +103,17 @@ class CBCond(Callback, ABC):
     # def __call__(self, model:"CallbackModel") -> Any: ...
 
     @final
-    def on(self, event: str, cond: Optional[Callable] = None):
+    def cond_fn(self, event: str, cond: "Optional[Callable[[EventModel, int], bool]]" = None):
+        """Runs `cond` on `even` and runs callback if `cond` returns True"""
         self.events.append((event, cond))
         return self
     @final
-    def every(self, event:str, every:int):
+    def cond_every(self, event:str, every:int):
+        """Runs callback `every` times `event` is fired."""
         self.events.append((event, lambda _,cur: cur % every == 0))
         return self
     @final
-    def first(self, event:str):
+    def cond_first(self, event:str):
         self.events.append((event, lambda _,cur: cur == 0))
         return self
 
@@ -120,21 +122,21 @@ class CBCond(Callback, ABC):
         events = self.events if len(self.events) > 0 else self.default_events
         if len(events) == 0: logging.warning("No conditions are given for callback %s.", self) # type:ignore
         for event, cond in events:
-            model.attach(event=event, fn=self, cond=cond)
+            model._attach(event=event, fn=self, cond=cond)
 
     @final
     def attach_default(self, model: "EventModel"):
         events = self.events if len(self.events) > 0 else self.default_events
         if len(events) == 0: logging.warning("No conditions are given for default callback %s.", self) # type:ignore
         for event, cond in events:
-            model.attach_default(event=event, fn=self, cond=cond)
+            model._attach_default(event=event, fn=self, cond=cond)
 
-class CBContext(Callback):
+class BasicCallback(Callback):
     """Doesn't attach to methods, can define `enter` and `exit`"""
     @final
-    def attach(self, model: "EventModel"): model.attach(event = "__CBContext", fn = self, cond = lambda x: False)
+    def attach(self, model: "EventModel"): model._attach(event = "__BasicCallback", fn = self, cond = lambda x: False)
     @final
-    def attach_default(self, model: "EventModel"): model.attach_default(event = "__CBContext", fn = self, cond = lambda x: False)
+    def attach_default(self, model: "EventModel"): model._attach_default(event = "__BasicCallback", fn = self, cond = lambda x: False)
 
 class Event:
     def __init__(self, event:str):
@@ -214,8 +216,8 @@ class Event:
 class EventModel(ABC):
     def __init__(self, cbs: Optional[Iterable[Callback]] = None, default_cbs: Optional[Iterable[Callback]] = None):
         # create events
-        self.events:dict[str, Event] = {}
-        self.default_events:dict[str, Event] = {}
+        self._events:dict[str, Event] = {}
+        self._default_events:dict[str, Event] = {}
 
         # set cbs for access
         self.cbs = []
@@ -230,17 +232,17 @@ class EventModel(ABC):
 
     @final
     def __getattr__(self, attr: str) -> Any:
-        if (attr not in self.events) and (attr not in self.default_events): raise AttributeError(f'`{attr}` not found in {self.__class__.__name__} or any of the callbacks')
+        if (attr not in self._events) and (attr not in self._default_events): raise AttributeError(f'`{attr}` not found in {self.__class__.__name__} or any of the callbacks')
         return partial(self.event, attr)
 
     def clear(self):
-        self.events:dict[str, Event] = {}
-        self.default_events:dict[str, Event] = {}
+        self._events:dict[str, Event] = {}
+        self._default_events:dict[str, Event] = {}
 
         self.cbs = []
         self.default_cbs = []
 
-    def attach(
+    def _attach(
         self,
         event: str,
         fn: Callback | Callable,
@@ -250,10 +252,10 @@ class EventModel(ABC):
         ID: Optional[Hashable] = None,
     ):
         """Attach function `fn` to method `event`."""
-        if event not in self.events: self.events[event] = Event(event)
-        self.events[event].add(fn = fn, cond = cond, order = order, ID = ID, name=name)
+        if event not in self._events: self._events[event] = Event(event)
+        self._events[event].add(fn = fn, cond = cond, order = order, ID = ID, name=name)
 
-    def attach_default(
+    def _attach_default(
         self,
         event: str,
         fn: Callback | Callable,
@@ -263,8 +265,8 @@ class EventModel(ABC):
         ID: Optional[Hashable] = None,
     ):
         """Attach function `fn` to default method `event`."""
-        if event not in self.default_events: self.default_events[event] = Event(event)
-        self.default_events[event].add(fn = fn, cond = cond, order = order, ID = ID, name=name)
+        if event not in self._default_events: self._default_events[event] = Event(event)
+        self._default_events[event].add(fn = fn, cond = cond, order = order, ID = ID, name=name)
 
     @final
     def add(self, cb: Callback | Iterable[Callback]):
@@ -291,10 +293,10 @@ class EventModel(ABC):
     #     return [j[0] for i in self.events.values() if len(i.cbs) > 0 for j in i.cbs] + [j[0] for i in self.default_events.values() if len(i.cbs) > 0 for j in i.cbs]
 
     def event(self, event:str, *args, **kwargs) -> Any:
-        if event in self.events:
-            return self.events[event](self, *args, **kwargs)
-        elif event in self.default_events:
-            return self.default_events[event](self, *args, **kwargs)
+        if event in self._events:
+            return self._events[event](self, *args, **kwargs)
+        elif event in self._default_events:
+            return self._default_events[event](self, *args, **kwargs)
 
     @final
     def remove(self, cbs: Callback | Callable | Iterable[Callable | Callback]):
@@ -306,17 +308,17 @@ class EventModel(ABC):
             if cb in self.cbs: self.cbs.remove(cb)
             if cb in self.default_cbs: self.default_cbs.remove(cb)
 
-        for event in self.events.copy().values():
+        for event in self._events.copy().values():
             event.remove(cbs)
-            if len(event.cbs) == 0: del self.events[event.event]
+            if len(event.cbs) == 0: del self._events[event.event]
 
     @final
     def remove_by_name(self, names:str|Iterable[str]):
         removed: list[tuple[str, Callable | Callback, Callable | None, int | float, str, Hashable, ]] = []
 
-        for event in self.events.copy().values():
+        for event in self._events.copy().values():
             removed.extend(event.remove_by_name(names))
-            if len(event.cbs) == 0: del self.events[event.event]
+            if len(event.cbs) == 0: del self._events[event.event]
 
         for cb in sorted(removed, key=lambda x: x[3]):
             if hasattr(cb, "exit"): cb.exit(self) # type:ignore
@@ -346,7 +348,7 @@ class EventModel(ABC):
             if str(cancel) != name: raise cancel
         finally:
             if extra is not None: self.remove(extra)
-            for i in removed: self.attach(*i)
+            for i in removed: self._attach(*i)
 
     @final
     @contextmanager
@@ -362,9 +364,9 @@ class EventModel(ABC):
         removed: list[tuple[str, Callable | Callback, Callable | None, int | float, str, Hashable, ]] = self.remove_by_name(callbacks)
         try: yield
         finally:
-            for i in removed: self.attach(*i) # type:ignore
+            for i in removed: self._attach(*i) # type:ignore
 
-class Event_DebugPerformance(Event):
+class EventWithPerformanceDebugging(Event):
     def __init__(self, event: str):
         super().__init__(event)
         self.cbs_time : dict[Any, list[float]] = {}
@@ -388,7 +390,7 @@ class EventModelWithPerformanceDebugging(EventModel, ABC):
         super().__init__(cbs, default_cbs)
         self.events_time : dict[str, list[float]] = {}
 
-    def attach(
+    def _attach(
         self,
         event: str,
         fn: Callback | Callable,
@@ -397,10 +399,10 @@ class EventModelWithPerformanceDebugging(EventModel, ABC):
         name: Optional[str] = None,
         ID: Optional[Hashable] = None,
     ):
-        if event not in self.events: self.events[event] = Event_DebugPerformance(event)
-        self.events[event].add(fn = fn, cond = cond, order = order, ID = ID, name=name)
+        if event not in self._events: self._events[event] = EventWithPerformanceDebugging(event)
+        self._events[event].add(fn = fn, cond = cond, order = order, ID = ID, name=name)
 
-    def attach_default(
+    def _attach_default(
         self,
         event: str,
         fn: Callback | Callable,
@@ -409,39 +411,40 @@ class EventModelWithPerformanceDebugging(EventModel, ABC):
         name: Optional[str] = None,
         ID: Optional[Hashable] = None,
     ):
-        if event not in self.default_events: self.default_events[event] = Event_DebugPerformance(event)
-        self.default_events[event].add(fn = fn, cond = cond, order = order, ID = ID, name=name)
+        if event not in self._default_events: self._default_events[event] = EventWithPerformanceDebugging(event)
+        self._default_events[event].add(fn = fn, cond = cond, order = order, ID = ID, name=name)
 
     def event(self, event:str, *args, **kwargs) -> Any:
         start = time.perf_counter()
-        if event in self.events:
-            res = self.events[event](self, *args, **kwargs)
-        elif event in self.default_events:
-            res = self.default_events[event](self, *args, **kwargs)
+        if event in self._events:
+            res = self._events[event](self, *args, **kwargs)
+        elif event in self._default_events:
+            res = self._default_events[event](self, *args, **kwargs)
         else: res = None
         time_took = time.perf_counter() - start
         if event not in self.events_time: self.events_time[event] = [time_took]
         else: self.events_time[event].append(time_took)
         return res
 
-    def events_sum_time(self): return {k:sum(v) for k,v in self.events_time.items()}
-    def events_avg_time(self): return {k:sum(v)/len(v) for k,v in self.events_time.items()}
-    def events_percent_time(self):
-        sums = self.events_sum_time()
+    def get_events_sum_time(self): return {k:sum(v) for k,v in self.events_time.items()}
+    def get_events_avg_time(self): return {k:sum(v)/len(v) for k,v in self.events_time.items()}
+    def get_events_percent_time(self):
+        sums = self.get_events_sum_time()
         total = sum(list(sums.values()))
         return {k:v/total for k,v in sums.items()}
 
 
-    def cbs_time(self):
+    def get_cbs_time(self):
         times:dict[str,float] = {}
-        for event in list(self.events.values()) + list(self.default_events.values()):
+        for event in list(self._events.values()) + list(self._default_events.values()):
             event_cbtimes:dict[str,list[float]] = event.cbs_time # type:ignore
             event_cbsumtimes = {k:sum(v) for k,v in event_cbtimes.items()}
             for k,v in event_cbsumtimes.items():
                 if k not in times: times[k] = v
                 else: times[k] += v
         return times
-    def cbs_percent_time(self):
-        times = self.cbs_time()
+
+    def get_cbs_percent_time(self):
+        times = self.get_cbs_time()
         total = sum(list(times.values()))
         return {k:v/total for k,v in times.items()}

@@ -1,13 +1,13 @@
 "1"
 from accelerate import Accelerator
-from ..design.EventModel import CBEvent
+from ..design.EventModel import EventCallback
 from ..python_tools import type_str
 from .Learner import Learner
 
 __all__ = [
     'AccelerateCB'
 ]
-class AccelerateCB(CBEvent):
+class AccelerateCB(EventCallback):
     """https://huggingface.co/docs/accelerate/en/index"""
     order = 10
     event = "before_fit"

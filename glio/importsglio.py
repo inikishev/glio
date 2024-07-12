@@ -28,7 +28,7 @@ from .data import DSClassification, DSRegression, DSBasic, DSToTarget
 
 from . import nn as gnn
 from .helpers import conv_outsize, convtranpose_outsize
-from .transforms.intensity import norm, znorm, znormch, unnomalizech
+from .transforms.intensity import norm, znorm, znormch, unznormch
 
 from torchzero.nn.layers.sequential import *
 from torchzero.nn.layers.conv import *

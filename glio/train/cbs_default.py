@@ -3,9 +3,9 @@ from collections.abc import Iterable
 from typing import Any, TYPE_CHECKING, Optional
 from contextlib import nullcontext
 import torch, torch.utils.data
-from ..design.EventModel import Callback, CBEvent
+from ..design.EventModel import Callback, EventCallback
 from ..python_tools import SupportsIter
-from ..torch_tools import ensure_device, ensure_detach, ensure_detach_cpu
+from ..torch_tools import ensure_device, ensure_detach, ensure_detach_cpu, ensure_cpu
 if TYPE_CHECKING:
     from .Learner import Learner
 
@@ -26,35 +26,35 @@ __all__ = [
 ]
 
 
-class DefaultForwardCB(CBEvent):
+class DefaultForwardCB(EventCallback):
     event = "forward"
     def __call__(self, learner: "Learner", inputs: torch.Tensor):
         learner.preds = learner.model(inputs)
         return learner.preds
 
-class DefaultGetLossCB(CBEvent):
+class DefaultGetLossCB(EventCallback):
     event = "get_loss"
     def __call__(self, learner: "Learner", preds:torch.Tensor, targets: torch.Tensor):
         learner.loss = learner.loss_fn(preds, targets) # type:ignore
         return learner.loss
 
-class DefaultBackwardCB(CBEvent):
+class DefaultBackwardCB(EventCallback):
     event = "backward"
     def __call__(self, learner: "Learner"):
         if learner.accelerator is None: learner.loss.backward()
         else: learner.accelerator.backward(learner.loss)
 
-class DefaultOptimizerStepCB(CBEvent):
+class DefaultOptimizerStepCB(EventCallback):
     event = "optimizer_step"
     def __call__(self, learner: "Learner", *args, **kwargs):
         learner.optimizer.step(*args, **kwargs) # type:ignore
 
-class DefaultZeroGradCB(CBEvent):
+class DefaultZeroGradCB(EventCallback):
     event = "zero_grad"
     def __call__(self, learner: "Learner"):
         learner.optimizer.zero_grad() # type:ignore
 
-class DefaultSchedulerStepCB(CBEvent):
+class DefaultSchedulerStepCB(EventCallback):
     event = "scheduler_step"
     def __call__(self, learner: "Learner"):
         if learner.scheduler is not None:
@@ -70,21 +70,21 @@ class DefaultSchedulerStepCB(CBEvent):
 #         #     if train: learner.optimizer.train() # type:ignore
 #         #     else: learner.optimizer.eval() # type:ignore
 
-class DefaultTrainCB(CBEvent):
+class DefaultTrainCB(EventCallback):
     event = "train"
     def __call__(self, learner: "Learner"):
         if hasattr(learner.model, "train") and callable(learner.model.train): learner.model.train()
         if hasattr(learner.optimizer, "train") and callable(learner.optimizer.train): learner.optimizer.train() # type:ignore
 
-class DefaultEvalCB(CBEvent):
+class DefaultEvalCB(EventCallback):
     event = "eval"
     def __call__(self, learner: "Learner"):
         if hasattr(learner.model, "eval") and callable(learner.model.eval): learner.model.eval()
         if hasattr(learner.optimizer, "eval") and callable(learner.optimizer.eval): learner.optimizer.eval() # type:ignore
 
-class DefaultOneBatchCB(CBEvent):
+class DefaultOneBatchCB(EventCallback):
     event = "one_batch"
-    def __call__(self, learner: "Learner", inputs: torch.Tensor, targets: torch.Tensor, train=True):
+    def __call__(self, learner: "Learner", inputs: torch.Tensor, targets: torch.Tensor, train=True, status=None):
         learner.train()
         if learner.accelerator is None: inputs, targets = inputs.to(learner.device), targets.to(learner.device)
         with nullcontext() if train else torch.no_grad():
@@ -103,23 +103,29 @@ class DefaultOneBatchCB(CBEvent):
                 learner.scheduler_step()
 
 
-class DefaultInferenceCB(CBEvent):
+class DefaultInferenceCB(EventCallback):
     event = "inference"
-    def __call__(self, learner: "Learner", batch: torch.Tensor| Any, to_cpu = True):
-        learner.eval()
-        batch = ensure_device(batch, learner.device)
-        with torch.no_grad():
-            if to_cpu: return ensure_detach_cpu(learner.forward(batch))
-            return ensure_detach(learner.forward(batch))
+    def __call__(self, learner: "Learner", inputs: torch.Tensor| Any, to_cpu = True, mode = 'eval', grad=False, unsqueeze = False):
+        if unsqueeze: inputs = inputs.unsqueeze(0)
+        if mode == 'eval': learner.eval()
+        elif mode == 'train': learner.train()
+        inputs = ensure_device(inputs, learner.device)
+        if grad:
+            if to_cpu: return ensure_cpu(learner.forward(inputs))
+            return learner.forward(inputs)
+        else:
+            with torch.no_grad():
+                if to_cpu: return ensure_detach_cpu(learner.forward(inputs))
+                return ensure_detach(learner.forward(inputs))
 
-class DefaultOneEpochCB(CBEvent):
+class DefaultOneEpochCB(EventCallback):
     event = "one_epoch"
     def __call__(self, learner: "Learner", dl: torch.utils.data.DataLoader | SupportsIter, train=True):
         for learner.cur_batch, (inputs, targets) in enumerate(dl): # type:ignore
             learner.one_batch(inputs, targets, train=train)
 
 
-class DefaultFitCB(CBEvent):
+class DefaultFitCB(EventCallback):
     event = "fit"
     def __call__(
         self,
@@ -151,7 +157,7 @@ class DefaultFitCB(CBEvent):
 
 
 
-class DefaultLogCB(CBEvent):
+class DefaultLogCB(EventCallback):
     event = "log"
     def __call__(self, learner:"Learner", metric:str, value):
         learner.logger.add(metric, value, learner.total_batch)

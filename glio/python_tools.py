@@ -673,7 +673,7 @@ def listdir_fullpaths(folder):
 
 def printargs(*args, **kwargs):
     for a in args: print(a)
-    mlen = max([len(str(k)) for k in kwargs])
+    mlen = max([len(str(k)) for k in kwargs]) if len(kwargs) > 0 else 0
     for k,v in kwargs.items(): print(f'{k.ljust(mlen)} = {v}')
 
 

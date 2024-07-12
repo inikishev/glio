@@ -1,15 +1,15 @@
 import torch
 from itertools import zip_longest
-from ..design.EventModel import CBCond
+from ..design.EventModel import ConditionCallback
 from .Learner import Learner
-from ..torch_tools import get_lr, set_lr as set_lr_, change_lr, copy_state_dict, ensure_float
+from ..torch_tools import get_lr, set_lr_ as set_lr_, copy_state_dict, ensure_float
 from ..python_tools import EndlessContinuingIterator
 
 __all__ = [
     "LRFinderPrimingOnCondCB",
     "IterativelyFindAndSetBestLROnCondCB",
 ]
-class LRFinderPrimingOnCondCB(CBCond):
+class LRFinderPrimingOnCondCB(ConditionCallback):
     def __init__(
         self,
         dl,
@@ -61,7 +61,7 @@ class LRFinderPrimingOnCondCB(CBCond):
                     min_loss = loss
                     best_state = copy_state_dict(learner.state_dict())
 
-                change_lr(learner.optimizer, lambda x: x * self.mul + self.add) # type:ignore
+                set_lr_(learner.optimizer, lambda x: x * self.mul + self.add) # type:ignore
                 if (self.stop is not None and get_lr(learner.optimizer) > self.stop) or (self.max_increase is not None and loss/min_loss > self.max_increase): # type:ignore
                     break
             iter_losses.append(losses)
@@ -76,13 +76,13 @@ class LRFinderPrimingOnCondCB(CBCond):
             avg_losses = [sum(i)/len(i) for i in avg_losses]
             learner.log("lr finder losses", avg_losses)
 
-class IterativelyFindAndSetBestLROnCondCB(CBCond):
-    def __init__(self, lrs = (0.5, 1, 1.5)):
+class IterativelyFindAndSetBestLROnCondCB(ConditionCallback):
+    def __init__(self, lrs = (0.5, 1, 1.5, 2)):
         super().__init__()
         self.lrs = lrs
 
     def __call__(self, learner:Learner):
-        with learner.without(["IterLR", "FastProgressBar"]):
+        with learner.without(["IterativelyFindAndSetBestLROnCondCB", "FastProgressBar"]):
             backup = copy_state_dict(learner.state_dict(attrs_state_dict = ("model", "optimizer"),))
             start_lr = get_lr(learner.optimizer) # type:ignore
             start_loss = ensure_float(learner.loss)

@@ -1,7 +1,7 @@
 """Docstring """
 import os, shutil
 from collections.abc import Mapping, Sequence
-from ..design.EventModel import CBCond, CBEvent
+from ..design.EventModel import ConditionCallback, EventCallback
 from .Learner import Learner
 from ..python_tools import int_at_beginning
 
@@ -9,8 +9,9 @@ __all__ = [
     "SaveBestCB",
     "SaveLastCB",
 ]
-class SaveBestCB(CBEvent):
+class SaveBestCB(EventCallback):
     event = "after_test_epoch"
+    order = 1 # needs to run after metrics are calculated
     def __init__(
         self,
         dir="runs",
@@ -33,7 +34,7 @@ class SaveBestCB(CBEvent):
 
     def __call__(self, learner: Learner):
         # make folders
-        checkpoint_path = f'{learner.get_epochbatch_dir(self.dir)}/checkpoint'
+        checkpoint_path = f'{learner.get_prefix_epochbatch_dir(self.dir,  "checkpoints")}'
 
         # avoid saving multiple checkpoints if multiple metrics improved
         is_already_saved = False
@@ -69,12 +70,13 @@ class SaveBestCB(CBEvent):
                         self.best_paths[met] = checkpoint_path
                         is_already_saved = True
 
-class SaveLastCB(CBEvent):
+class SaveLastCB(EventCallback):
     event = "after_fit"
+    order = 1 # needs to run after metrics are calculated
     def __init__(self, dir = "runs", serialize=False): #pylint:disable=W0102
         super().__init__()
         self.dir = dir
         self.serialize = serialize
 
     def __call__(self, learner: Learner):
-        learner.checkpoint(dir = f'{learner.get_epochbatch_dir(self.dir)}/checkpoint', serialize=self.serialize, mkdir=True)
+        learner.checkpoint(dir = f'{learner.get_prefix_epochbatch_dir(self.dir,  "checkpoints")}', serialize=self.serialize, mkdir=True)

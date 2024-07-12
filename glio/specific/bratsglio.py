@@ -102,7 +102,7 @@ def visualize_brats_reference_all(inferer, around=1, overlap=0.75, expand=None, 
     for i in range(len(brats_gli_references)):
         visualize_brats_reference(i, inferer=inferer, around=around, overlap=overlap, expand=expand, save=save, folder=folder,prefix=prefix)
 
-class SaveReferenceVisualizationsAfterEachEpochCB(CBMethod):
+class SaveReferenceVisualizationsAfterEachEpochCB(MethodCallback):
     order = 1
     def __init__(self, folder='runs', brats=tuple(range(len(brats_gli_references)))):
         self.folder=folder

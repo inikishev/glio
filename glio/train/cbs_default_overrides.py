@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 from contextlib import nullcontext
 import torch, torch.utils.data
-from ..design.EventModel import CBEvent, CBMethod
+from ..design.EventModel import EventCallback, MethodCallback
 if TYPE_CHECKING:
     from .Learner import Learner
 
@@ -16,7 +16,7 @@ __all__ = [
     "AddLossReturnedByModelToLossInGetLossCB",
     "AddLossReturnedByModelToLossInBackwardCB",
 ]
-class OneBatchClosureCB(CBEvent):
+class OneBatchClosureCB(EventCallback):
     event = "one_batch"
     def __call__(self, learner: "Learner", inputs: torch.Tensor, targets: torch.Tensor, train=True):
         learner.set_mode(train)
@@ -36,7 +36,7 @@ class OneBatchClosureCB(CBEvent):
                 learner.loss = learner.get_loss(learner.preds, targets) # type:ignore
 
 
-class OneBatchClosureWithNoBackwardCB(CBEvent):
+class OneBatchClosureWithNoBackwardCB(EventCallback):
     event = "one_batch"
     def __call__(self, learner: "Learner", inputs: torch.Tensor, targets: torch.Tensor, train=True):
         learner.set_mode(train)
@@ -56,7 +56,7 @@ class OneBatchClosureWithNoBackwardCB(CBEvent):
                 learner.loss = learner.get_loss(learner.preds, targets) # type:ignore
 
 
-class GradientFreeCB(CBMethod):
+class GradientFreeCB(MethodCallback):
     order = 100
     def zero_grad(self, learner: "Learner"): pass
     def backward(self, learner: "Learner"): pass
@@ -69,7 +69,7 @@ class GradientFreeCB(CBMethod):
     def before_batch(self, learner: "Learner"):
         torch.set_grad_enabled(False)
 
-class GradientFreeWithZeroGradCB(CBMethod):
+class GradientFreeWithZeroGradCB(MethodCallback):
     order = 100
     def backward(self, learner: "Learner"): pass
     def enter(self, learner:"Learner"):
@@ -81,11 +81,11 @@ class GradientFreeWithZeroGradCB(CBMethod):
     def before_batch(self, learner: "Learner"):
         torch.set_grad_enabled(False)
 
-class PassLossToOptimizerStepCB(CBMethod):
+class PassLossToOptimizerStepCB(MethodCallback):
     def optimizer_step(self, learner: "Learner"):
         learner.optimizer.step(learner.loss) # type:ignore
 
-class SimpleMomentumCB(CBMethod):
+class SimpleMomentumCB(MethodCallback):
     def __init__(self, momentum=0.9):
         self.momentum = momentum
     @torch.no_grad
@@ -93,7 +93,7 @@ class SimpleMomentumCB(CBMethod):
         for p in learner.model.parameters():
             if p.grad is not None: p.grad *= self.momentum
 
-class CallTrainAndEvalOnOptimizerCB(CBEvent):
+class CallTrainAndEvalOnOptimizerCB(EventCallback):
     event = "set_mode"
     def __call__(self, learner: "Learner", train=True):
         if hasattr(learner.model, "train"):
@@ -104,7 +104,7 @@ class CallTrainAndEvalOnOptimizerCB(CBEvent):
             else: learner.optimizer.eval() # type:ignore
 
 
-class AddLossReturnedByModelToLossInGetLossCB(CBMethod):
+class AddLossReturnedByModelToLossInGetLossCB(MethodCallback):
     def forward(self, learner: "Learner", inputs: torch.Tensor):
         returned_value = learner.model(inputs)
         if isinstance(returned_value, torch.Tensor):
@@ -118,7 +118,7 @@ class AddLossReturnedByModelToLossInGetLossCB(CBMethod):
         else: learner.loss = learner.loss_fn(preds, targets) # type:ignore
         return learner.loss
 
-class AddLossReturnedByModelToLossInBackwardCB(CBMethod):
+class AddLossReturnedByModelToLossInBackwardCB(MethodCallback):
     def forward(self, learner: "Learner", inputs: torch.Tensor):
         returned_value = learner.model(inputs)
         if isinstance(returned_value, torch.Tensor):

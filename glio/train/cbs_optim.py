@@ -1,5 +1,5 @@
 import torch
-from ..design.EventModel import CBMethod
+from ..design.EventModel import MethodCallback
 from .Learner import Learner
 from ..torch_tools import copy_state_dict
 
@@ -7,7 +7,7 @@ __all__ = [
     "ResetOptimizerOnTestLossIncreaseCB",
 ]
 
-class ResetOptimizerOnTestLossIncreaseCB(CBMethod):
+class ResetOptimizerOnTestLossIncreaseCB(MethodCallback):
     order=10
     def before_fit(self, learner:Learner):
         self.empty_state_dict = copy_state_dict(learner.optimizer.state_dict()) # type:ignore

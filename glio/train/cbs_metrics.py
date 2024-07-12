@@ -24,7 +24,7 @@ class CBMetric(Callback, ABC):
         self,
         train=True,
         test=True,
-        aggregate_funcs: dict[str, Callable] = {"mean": np.mean, "min": np.min, "max": np.max, "median": np.median},
+        aggregate_funcs: dict[str, Callable] = {"": np.mean, "min": np.min, "max": np.max, "median": np.median},
         train_cond: Optional[Callable] = None,
         test_cond: Optional[Callable] = None,
     ):
@@ -50,18 +50,18 @@ class CBMetric(Callback, ABC):
     def epoch(self, learner: "Learner"):
         if len(self.test_metrics) > 0:
             for name, func in self.aggregate_funcs.items():
-                learner.log(f"test {self.metric} {name}", func(self.test_metrics))
+                learner.log(f"test {self.metric}{(' ' + name) if len(name) > 0 else ''}", func(self.test_metrics))
             self.test_metrics = []
 
     def attach(self, learner:"EventModel"):
-        learner.attach(event = "after_batch", fn = self.batch, cond = self.train_cond, name = get__name__(self), ID = id(self))
+        learner._attach(event = "after_batch", fn = self.batch, cond = self.train_cond, name = get__name__(self), ID = id(self))
         if self.test:
-            learner.attach(event =  "after_test_epoch", fn = self.epoch, cond = self.test_cond, name = get__name__(self), ID = id(self))
+            learner._attach(event =  "after_test_epoch", fn = self.epoch, cond = self.test_cond, name = get__name__(self), ID = id(self))
 
     def attach_default(self, learner:"EventModel"):
-        learner.attach_default(event = "after_batch", fn = self.batch, cond = self.train_cond, name = get__name__(self), ID = id(self))
+        learner._attach_default(event = "after_batch", fn = self.batch, cond = self.train_cond, name = get__name__(self), ID = id(self))
         if self.test:
-            learner.attach_default(event =  "after_test_epoch", fn = self.epoch, cond = self.test_cond, name = get__name__(self), ID = id(self))
+            learner._attach_default(event =  "after_test_epoch", fn = self.epoch, cond = self.test_cond, name = get__name__(self), ID = id(self))
 
 
 class LogLossCB(CBMetric):

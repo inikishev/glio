@@ -1,13 +1,13 @@
 """Docstring """
 import torch
-from ..design.EventModel import CBEvent
+from ..design.EventModel import EventCallback
 from .Learner import Learner
 
 __all__ = [
     "PrintSummaryCB",
 ]
 
-class PrintSummaryCB(CBEvent):
+class PrintSummaryCB(EventCallback):
     event = "after_fit"
     order = -10
     def __init__(self, metrics = None):

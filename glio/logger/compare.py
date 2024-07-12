@@ -1,7 +1,7 @@
 from collections.abc import Sequence
-import os
+import os, logging
 from . import Logger
-from ..python_tools import listdir_fullpaths, reduce_dim, flexible_filter
+from ..python_tools import listdir_fullpaths, reduce_dim, flexible_filter, int_at_beginning
 from ..plot import *
 
 __all__ = [
@@ -23,11 +23,17 @@ class Comparison:
         self.loggers = loggers
 
     @classmethod
-    def from_checkpoint_folder_old(cls, path):
+    def from_checkpoint_folder(cls, path):
         loggers = {}
         for model in os.listdir(path):
-            fullpath = os.path.join(path, model)
-            loggers[model] = Logger.from_file(os.path.join(fullpath, 'logger.npz'))
+            checkpoints = os.path.join(path, model, 'checkpoints')
+            if os.path.isdir(checkpoints) and len(os.listdir(checkpoints)) > 0:
+                for i in reversed(sorted(os.listdir(checkpoints), key=lambda x: int(''.join([str(i) for i in x if i.isdigit()])))):
+                    fullpath = os.path.join(checkpoints, i)
+                    if os.path.isfile(os.path.join(fullpath, 'logger.npz')): 
+                        loggers[model] = Logger.from_file(os.path.join(fullpath, 'logger.npz'))
+                        break
+                    #else: logging.warning(fullpath)
         return cls(loggers)
 
     def _filt(self, filt):

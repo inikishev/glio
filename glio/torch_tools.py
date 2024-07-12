@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from .python_tools import type_str, try_copy, EndlessContinuingIterator, Compose, reduce_dim
 CUDA_IF_AVAILABLE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-def ensure_device(x, device:Optional[torch.device]):
+def ensure_device(x, device:Optional[torch.device]) -> Any:
     """Recursively moves x to device, if possible. Note that this can be very slow.
 
     Args:
@@ -84,10 +84,19 @@ def ensure_float(x) -> Any:
     elif isinstance(x, (list, tuple)): return [ensure_float(i) for i in x]
     else: return x
 
-class FreezeModel:
-    def __init__(self, model:torch.nn.Module):
+class ModelFridge:
+    def __init__(self, model:torch.nn.Module, freeze=True):
         self.original_requires_grads = []
         self.model = model
+        self.frozen = False
+
+        if freeze: self.freeze()
+
+    def freeze(self):
+        if self.frozen:
+            logging.warning('Model is already frozen')
+            return
+
         for param in self.model.parameters():
             self.original_requires_grads.append(param.requires_grad)
             param.requires_grad = False
@@ -95,9 +104,14 @@ class FreezeModel:
         self.frozen = True
 
     def unfreeze(self):
+        if not self.frozen:
+            logging.warning('Model is not frozen')
+            return
+
         for i, param in enumerate(self.model.parameters()):
             param.requires_grad = self.original_requires_grads[i]
 
+        self.original_requires_grads = []
         self.frozen = False
 
 
@@ -107,6 +121,17 @@ def is_container(mod:torch.nn.Module):
     if len(list(mod.parameters(False))) == 0 and len(list(mod.buffers(False))) == 0: return True # containers don't do anything themselves so they can't have parameters or buffers
     return False # has children, but has params or buffers
 
+def is_inplace(mod:torch.nn.Module):
+    """Returns True if the module is an inplace operation"""
+    if hasattr(mod, "inplace") and mod.inplace: return True
+    return False
+
+def is_inplace_recursive(mod:torch.nn.Module):
+    """Returns True if the module or any of its children are inplace operations"""
+    if is_inplace(mod): return True
+    for child in mod.children():
+        if is_inplace_recursive(child): return True
+    return False
 def param_count(module:torch.nn.Module): return sum(p.numel() for p in module.parameters())
 def buffer_count(module:torch.nn.Module): return sum(b.numel() for b in module.buffers())
 
@@ -225,8 +250,9 @@ def copy_state_dict(state_dict:dict):
     }
 
 
-class BackupModule:
+class ModuleBackup:
     def __init__(self, model:torch.nn.Module | Any):
+        """Save a copy of `model` state_dict, can be restored at any time using `restore`."""
         self.model = model
         self.state_dict = copy_state_dict(model.state_dict())
 
@@ -243,13 +269,10 @@ class BackupModule:
 def get_lr(optimizer:torch.optim.Optimizer) -> float:
     return optimizer.param_groups[0]['lr']
 
-def set_lr(optimizer:torch.optim.Optimizer, lr:int|float):
+def set_lr_(optimizer:torch.optim.Optimizer, lr:int|float|Callable):
     for g in optimizer.param_groups:
-        g['lr'] = lr
-
-def change_lr(optimizer:torch.optim.Optimizer, fn:Callable):
-    for g in optimizer.param_groups:
-        g['lr'] = fn(g['lr'])
+        if callable(lr): g['lr'] = lr(g['lr'])
+        else: g['lr'] = lr
 
 def lr_finder_fn(
     one_batch_fn: Callable,
@@ -267,7 +290,7 @@ def lr_finder_fn(
     if device is None: device = torch.device('cpu')
     lrs = []
     losses = []
-    set_lr(optimizer, start)
+    set_lr_(optimizer, start)
     if end is None and max_increase is None: raise ValueError("Specify at least one of `end` or `max_increase`.")
     converged = False
     dl_iter = EndlessContinuingIterator(dl)
@@ -279,7 +302,7 @@ def lr_finder_fn(
             lrs.append(get_lr(optimizer))
             losses.append(loss)
 
-            change_lr(optimizer, lambda x: x * mul + add)
+            set_lr_(optimizer, lambda x: x * mul + add)
 
             if log:print(f"lr: {get_lr(optimizer)} loss: {loss}", end="\r")
             if (end is not None and get_lr(optimizer) > end) or (max_increase is not None and loss/min(losses) > max_increase):
@@ -318,8 +341,8 @@ def lr_finder(
         best_model = None
     try:
         for _ in range(niter):
-            model_backup = BackupModule(model) if hasattr(model, "state_dict") else None
-            optimizer_backup = BackupModule(optimizer) if hasattr(optimizer, "state_dict") else None
+            model_backup = ModuleBackup(model) if hasattr(model, "state_dict") else None
+            optimizer_backup = ModuleBackup(optimizer) if hasattr(optimizer, "state_dict") else None
             model.train()
             trainer = Trainer(model, loss_fn, optimizer, device = device, save_best=return_best)
             fn = trainer.one_batch
@@ -365,10 +388,10 @@ def lr_finder(
 
 def has_nonzero_weight(mod:torch.nn.Module): return hasattr(mod, "weight") and mod.weight.std!=0
 
-def apply_init_fn(model:torch.nn.Module, init_fn: Callable, filt = has_nonzero_weight) -> torch.nn.Module:
+def apply_init_fn_(model:torch.nn.Module, init_fn: Callable, filt = has_nonzero_weight) -> torch.nn.Module:
     return model.apply(lambda m: init_fn(m.weight) if hasattr(m, "weight") and (filt(m) if filt is not None else True) else None)
 
-def smart_tonumpy(t):
+def ensure_numpy(t):
     if isinstance(t, torch.Tensor):
         t = t.detach().cpu().numpy()
     return t
@@ -380,6 +403,7 @@ def to_binary(t:torch.Tensor, threshold:float = 0.5):
 
 def center_of_mass(feature:torch.Tensor):
     '''
+    adapted to pytorch from
     https://github.com/tym002/tensorflow_compute_center_of_mass/blob/main/compute_center_mass.py
 
     COM computes the center of mass of the input 4D or 5D image
@@ -504,35 +528,35 @@ def one_hot_mask(mask: torch.Tensor, num_classes:int) -> torch.Tensor:
 def count_parameters(model):
     return sum([p.numel() for p in model.parameters() if p.requires_grad])
 
-def replace_layers(model:torch.nn.Module, old:type, new:torch.nn.Module):
+def replace_layers_(model:torch.nn.Module, old:type, new:torch.nn.Module):
     """https://www.kaggle.com/code/ankursingh12/why-use-setattr-to-replace-pytorch-layers"""
     for n, module in model.named_children():
         if len(list(module.children())) > 0:
             ## compound module, go inside it
-            replace_layers(module, old, new)
+            replace_layers_(module, old, new)
 
         if isinstance(module, old):
             ## simple module
             setattr(model, n, new)
 
-def replace_conv(model:torch.nn.Module, old:type, new:type):
+def replace_conv_(model:torch.nn.Module, old:type, new:type):
     """Bias always True!!!"""
     for n, module in model.named_children():
         if len(list(module.children())) > 0:
             ## compound module, go inside it
-            replace_conv(module, old, new)
+            replace_conv_(module, old, new)
 
         if isinstance(module, old):
             ## simple module
             setattr(model, n, new(module.in_channels, module.out_channels, module.kernel_size,
                                   module.stride, module.padding, module.dilation, module.groups))
 
-def replace_conv_transpose(model:torch.nn.Module, old:type, new:type):
+def replace_conv_transpose_(model:torch.nn.Module, old:type, new:type):
     """Bias always True!!!"""
     for n, module in model.named_children():
         if len(list(module.children())) > 0:
             ## compound module, go inside it
-            replace_conv(module, old, new)
+            replace_conv_(module, old, new)
 
         if isinstance(module, old):
             ## simple module
@@ -550,7 +574,9 @@ def preds_batch_to_onehot(preds:torch.Tensor):
 
 
 def angle(a, b, dim=-1):
-    """https://github.com/pytorch/pytorch/issues/59194"""
+    """
+    Angle between two tensors.
+    https://github.com/pytorch/pytorch/issues/59194"""
     a_norm = a.norm(dim=dim, keepdim=True)
     b_norm = b.norm(dim=dim, keepdim=True)
     return 2 * torch.atan2(
@@ -576,7 +602,7 @@ def seeded_rng(seed:Optional[Any]=0):
     np.random.set_state(numpy_state)
     random.setstate(python_state)
 
-def seed0_worker(worker_id):
+def _seed0_worker(worker_id):
     """
     ```py
     DataLoader(
@@ -591,10 +617,10 @@ def seed0_worker(worker_id):
     np.random.seed(worker_seed)
     random.seed(worker_seed)
 
-seed0_generator = torch.Generator()
-seed0_generator.manual_seed(0)
+_seed0_generator = torch.Generator()
+_seed0_generator.manual_seed(0)
 
-seed0_kwargs = {'generator': seed0_generator, 'worker_init_fn': seed0_worker}
+seed0_kwargs = {'generator': _seed0_generator, 'worker_init_fn': _seed0_worker}
 """Kwargs for pytorch dataloader so that it is deterministic"""
 
 def seeded_randperm(n,
@@ -611,6 +637,7 @@ def seeded_randperm(n,
         return torch.randperm(n, out=out, dtype=dtype, layout=layout, device=device, pin_memory=pin_memory, requires_grad=requires_grad)
 
 def stepchunk(vec:torch.Tensor|np.ndarray, chunks:int, maxlength:Optional[int]=None):
+    """Chunk a vector, but using steps (e.g. first chunk can be 0,4,8,12,16, second - 1,5,9,13,17, etc)"""
     maxlength = maxlength or vec.shape[0]
     return [vec[i : i+maxlength : chunks] for i in range(chunks)]
 
@@ -664,7 +691,7 @@ def map_to_base(number:int, base):
         base (int): The base to convert the integer to.
 
     Returns:
-        numpy.ndarray: An array of digits representing the input integer in the given base.
+        torch.Tensor: An array of digits representing the input integer in the given base.
     """
     if number == 0: return torch.tensor([0])
     # Convert the input numbers to their digit representation in the given base
@@ -691,6 +718,7 @@ def sliding_inference_around_3d(input:torch.Tensor, inferer, size, step, around,
 
 
 class CreateIterator:
+    """Wraps an iterable but can set any length."""
     def __init__(self, iterable:Iterable, length: int):
         self.iterable = iterable
         self.length = length
@@ -873,3 +901,4 @@ class MRISlicer:
         seg_prob = 1 - self.any_prob
         any_to_seg_ratio = self.any_prob / seg_prob
         return [self.get_random_slice for i in range(int(self.get_non_empty_count() * any_to_seg_ratio))]
+

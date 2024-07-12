@@ -1,6 +1,6 @@
 """Docstring """
 import torch
-from ..design.EventModel import CBEvent
+from ..design.EventModel import EventCallback
 from .Learner import Learner
 
 __all__ = [
@@ -8,7 +8,7 @@ __all__ = [
     "GradClipValueCB"
 ]
 
-class GradClipNormCB(CBEvent):
+class GradClipNormCB(EventCallback):
     event = "optimizer_step"
     order = -10
     def __init__(self, max_norm: float):
@@ -18,7 +18,7 @@ class GradClipNormCB(CBEvent):
     def __call__(self, learner: "Learner"):
         torch.nn.utils.clip_grad_norm_(learner.model.parameters(), self.max_norm) # type: ignore
 
-class GradClipValueCB(CBEvent):
+class GradClipValueCB(EventCallback):
     event = "optimizer_step"
     order = -9
     def __init__(self, clip_value: float):

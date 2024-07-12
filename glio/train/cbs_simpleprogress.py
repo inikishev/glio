@@ -2,7 +2,7 @@ from collections.abc import Sequence
 import math
 from collections import deque
 import numpy as np
-from ..design.EventModel import CBMethod
+from ..design.EventModel import MethodCallback
 from .Learner import Learner
 from ..progress_bar import PBar
 
@@ -12,7 +12,7 @@ __all__ = [
     'PrintMetricsCB',
     "PrintInverseDLossCB",
 ]
-class SimpleProgressBarCB(CBMethod):
+class SimpleProgressBarCB(MethodCallback):
     order = 90
     def __init__(
         self,
@@ -55,11 +55,11 @@ class SimpleProgressBarCB(CBMethod):
     def after_fit(self, learner: Learner):
         self._write(learner)
 
-class PrintLossCB(CBMethod):
+class PrintLossCB(MethodCallback):
     def after_batch(self, learner: Learner):
         print(f'{learner.status} loss = {float(learner.loss.detach().cpu()):.4f}', end='     \r')
 
-class PrintMetricsCB(CBMethod):
+class PrintMetricsCB(MethodCallback):
     order = 90
     def __init__(self, metrics:Sequence[str]=("train loss", "test loss", "train accuracy", "test accuracy")):
         super().__init__()
@@ -74,7 +74,7 @@ class PrintMetricsCB(CBMethod):
 
 
 
-class PrintInverseDLossCB(CBMethod):
+class PrintInverseDLossCB(MethodCallback):
     def __init__(self, length = 1.):
         """Idk.
 

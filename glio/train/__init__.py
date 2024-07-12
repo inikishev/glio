@@ -1,6 +1,6 @@
 """Callbacks"""
 
-from .Learner import Learner, Learner_DebugPerformance
+from .Learner import *
 from .cbs_set import *
 from .cbs_log import *
 from .cbs_debug import *
@@ -19,7 +19,7 @@ from .cbs_default_overrides import *
 from .cbs_performance import *
 from .cbs_optim import *
 
-from ..design.EventModel import Callback, CBCond, CBContext, CBEvent, CBMethod
+from ..design.EventModel import Callback, ConditionCallback, BasicCallback, EventCallback, MethodCallback
 
 try:
     import accelerate as __

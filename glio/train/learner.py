@@ -8,7 +8,7 @@ from datetime import datetime
 import torch, torch.utils.data
 import numpy as np
 
-from ..design.EventModel import EventModel, EventModelWithPerformanceDebugging, Callback, CBCond, CBContext, CBEvent, CBMethod
+from ..design.EventModel import EventModel, EventModelWithPerformanceDebugging, Callback, ConditionCallback, BasicCallback, EventCallback, MethodCallback
 from ..logger import Logger
 from ..torch_tools import CUDA_IF_AVAILABLE, ensure_device, copy_state_dict
 from ..python_tools import SupportsIter, try_copy, type_str, get__name__, int_at_beginning, to_valid_fname
@@ -31,6 +31,11 @@ from .cbs_default import (
 
 if TYPE_CHECKING:
     from accelerate import Accelerator
+
+__all__ = [
+    "Learner",
+    "LearnerWithPerformanceDebugging",
+    ]
 
 DEFAULT_CBS = (
     DefaultForwardCB(),
@@ -63,6 +68,7 @@ def _serialize_torch_save_dill(fname, obj,):
 def _load_torch_dill(fname, map_location=None):
     import dill
     return torch.load(f=fname, map_location=map_location, pickle_module=dill)
+
 class Learner(EventModel):
     """Learner"""
 
@@ -81,8 +87,8 @@ class Learner(EventModel):
     ):
         self.model: torch.nn.Module = model
         self.name: str = name
-        self.optimizer: Optional[torch.optim.Optimizer] = optimizer
-        self.scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = scheduler
+        self.optimizer: Optional[torch.optim.Optimizer | Any] = optimizer
+        self.scheduler: Optional[torch.optim.lr_scheduler.LRScheduler | Any] = scheduler
         self.loss_fn: Optional[Callable] = loss_fn
         self.accelerator: Optional["Accelerator"] = accelerator
         self.device: Optional[torch.device] = device
@@ -170,9 +176,9 @@ class Learner(EventModel):
         self.event("after_any_batch")
         if self.status == "train": self.total_batch += 1
 
-    def inference(self, batch, to_cpu = True, status = 'inference'):
+    def inference(self, inputs, to_cpu = True, mode = 'eval', status = 'inference', grad=False, unsqueeze = False):
         if status is not None: self.status = status
-        return self.event("inference", batch, to_cpu)[-1]
+        return self.event("inference", inputs = inputs, to_cpu = to_cpu, mode = mode, grad = grad, unsqueeze = unsqueeze)[-1]
 
     def one_epoch(self, dl: torch.utils.data.DataLoader | SupportsIter, train=True):
         self.dl = dl
@@ -195,7 +201,7 @@ class Learner(EventModel):
         test_every: int = 1,
         catch_interrupt=True,
         test_on_interrupt = True,
-        atfer_fit_on_iterrupt = True,
+        after_fit_on_interrupt = True,
         extra:Optional[Callback | Iterable[Callback]] = None,
         without:Optional[str | Iterable[str]] = None
     ):
@@ -209,7 +215,7 @@ class Learner(EventModel):
             test_every (int, optional): Test every x epochs. Defaults to 1.
             catch_interrupt (bool, optional): Whether to catch KeyboardInterrupt. Defaults to True.
             test_on_interrupt (bool, optional): Whether to test on iterrupt, requires `catch_interrupt`. Defaults to True.
-            atfer_fit_on_iterrupt (bool, optional): Whether to run `after_fit` even on iterrupt, requires `catch_interrupt`. Defaults to True.
+            after_fit_on_interrupt (bool, optional): Whether to run `after_fit` even on iterrupt, requires `catch_interrupt`. Defaults to True.
             extra (Optional[Callback  |  Iterable[Callback]], optional): Extra callbacks to use during fitting. Defaults to None.
             without (Optional[str  |  Iterable[str]], optional): Callbacks that won't be used during fitting. Defaults to None.
         """
@@ -225,7 +231,7 @@ class Learner(EventModel):
         if catch_interrupt: self.catch_fit_exceptions = KeyboardInterrupt
         else: self.catch_fit_exceptions = ()
         self.test_on_interrupt = test_on_interrupt
-        self.atfer_fit_on_iterrupt = atfer_fit_on_iterrupt
+        self.atfer_fit_on_iterrupt = after_fit_on_interrupt
 
         # epochs
         self.epochs_iterator = range(self.num_epochs)
@@ -616,15 +622,15 @@ callbacks:
         # create the root directory
         if (not os.path.exists(dir)) and mkdir: os.mkdir(dir)
         # get all runs in the root directory
-        runs: dict[int, str] = {int_at_beginning(i.replace(self.name, '')):i for i in os.listdir(dir) if (os.path.isdir(i) and i.replace(self.name, '')[0].isnumeric())} # type:ignore
+        runs: dict[int, str] = {int_at_beginning(i.replace(f'{self.name} ', '')):i for i in os.listdir(dir) if (os.path.isdir(os.path.join(dir, i)) and self.name in i and i.replace(f'{self.name} ', '')[0].isnumeric())} # type:ignore
         # if no runs, this is the 1st run
         if len(runs) == 0: run_index = 1
         else:
             # find last run
             last = max(list(runs.keys()))
             # if last run is empty, delete it and use same index
-            if len(os.listdir(runs[last])) == 0:
-                shutil.rmtree(runs[last])
+            if len(os.listdir(os.path.join(dir, runs[last]))) == 0:
+                shutil.rmtree(os.path.join(dir, runs[last]))
                 run_index = last
             # otherwise increment last run index
             else: run_index = last + 1
@@ -660,4 +666,34 @@ callbacks:
         if not os.path.exists(checkpoint_path): os.mkdir(checkpoint_path)
         return os.path.join(checkpoint_path)
 
-class Learner_DebugPerformance(Learner, EventModelWithPerformanceDebugging): pass
+    def get_prefix_epochbatch_dir(self, dir, prefix, mkdir = True, metrics = ('test loss', 'test accuracy')):
+        """Return a directory for current epoch/batch - `{self.workdir}/{prefix}/{total epochs} {total batches} {metric details}`.
+
+        For example: `e5 b36385 test-loss_0.22640`
+
+        Workdir is `{dir}/{self.name} {run index} - {datetime}`
+
+        Args:
+            dir (_type_): _description_
+            mkdir (bool, optional): _description_. Defaults to True.
+
+        Returns:
+            _type_: _description_
+        """
+        workdir = os.path.join(self.get_workdir(dir, mkdir=mkdir), prefix)
+        if not os.path.exists(workdir): os.mkdir(workdir)
+        checkpoint_name = f'e{self.total_epoch} b{self.total_batch}'
+
+        for metric in metrics:
+            if metric in self.logger:
+                checkpoint_name += f" {to_valid_fname(metric.replace(' ', '-'))}_{self.logger.last(metric):.5f}"
+
+        checkpoint_path = os.path.join(workdir, checkpoint_name)
+        if not os.path.exists(checkpoint_path): os.mkdir(checkpoint_path)
+        return os.path.join(checkpoint_path)
+
+    def set_lr(self, lr:float | Callable):
+        from ..torch_tools import set_lr_
+        set_lr_(self.optimizer, lr) # type:ignore
+
+class LearnerWithPerformanceDebugging(Learner, EventModelWithPerformanceDebugging): pass

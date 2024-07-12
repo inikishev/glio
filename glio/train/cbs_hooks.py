@@ -1,12 +1,16 @@
 "Stuff that uses `register_forward_hook` and `register_backward_hook`"
+from collections.abc import Sequence
 import os
+import functools
+
 import torch
 import numpy as np
 from PIL import Image
+
 from .Learner import Learner
-from ..design.EventModel import CBContext, CBMethod
-from . hooks_base import LearnerForwardHook, LearnerBackwardHook
-from ..torch_tools import is_container
+from ..design.EventModel import BasicCallback, MethodCallback
+from . hooks_base import LearnerForwardHook, LearnerBackwardHook, LearnerRegisterTensorBackwardHook, LearnerRegisterForwardHook
+from ..torch_tools import is_container, is_inplace, ensure_device, is_inplace_recursive
 from ..transforms.intensity import norm
 from ..python_tools import to_valid_fname
 from ..loaders.image import imwrite
@@ -21,7 +25,7 @@ __all__ = [
 ]
 
 
-class LogLayerSignalDistributionCB(LearnerForwardHook, CBContext):
+class LogLayerSignalDistributionCB(LearnerForwardHook, BasicCallback):
     def __init__(self, step: int = 1, mean = True, std = True, var = True, min = True, max = True, filt = lambda x: not is_container(x)): # pylint: disable=W0622
         self.step = step
 
@@ -36,7 +40,7 @@ class LogLayerSignalDistributionCB(LearnerForwardHook, CBContext):
             if self.min: learner.log(f'{name} output min', outputs.min())
             if self.max: learner.log(f'{name} output max', outputs.max())
 
-class LogLayerSignalHistorgramCB(LearnerForwardHook, CBContext):
+class LogLayerSignalHistorgramCB(LearnerForwardHook, BasicCallback):
     def __init__(self, step: int = 1, range = 10, bins = 60, top_dead = 1, filt = lambda x: not is_container(x)): # pylint: disable=W0622
         self.step = step
 
@@ -50,7 +54,7 @@ class LogLayerSignalHistorgramCB(LearnerForwardHook, CBContext):
             zero = int(len(hist)/2)
             if self.top_dead is not None: learner.log(f'{name} dead activations', hist[zero-self.top_dead:zero+self.top_dead].sum()/hist.sum())
 
-class LogLayerGradDistributionCB(LearnerBackwardHook, CBContext):
+class LogLayerGradDistributionCB(LearnerBackwardHook, BasicCallback):
     def __init__(self, step: int = 1, mean = True, std = True, var = True, min = True, max = True, filt = lambda x: not is_container(x)): # pylint: disable=W0622
         self.step = step
 
@@ -73,7 +77,7 @@ class LogLayerGradDistributionCB(LearnerBackwardHook, CBContext):
                 if self.min: learner.log(f'{name} output grad min', grad_output[0].min())
                 if self.max: learner.log(f'{name} output grad max', grad_output[0].max())
 
-class LogLayerGradHistorgramCB(LearnerBackwardHook, CBContext):
+class LogLayerGradHistorgramCB(LearnerBackwardHook, BasicCallback):
     def __init__(self, step: int = 1, range = None, bins = 60, filt = lambda x: not is_container(x)): # pylint: disable=W0622
         self.step = step
 
@@ -112,10 +116,10 @@ def _save_3D_slices(x:torch.Tensor, dir:str, prefix = '', mkdir=True, max_numel 
         for i,sl in enumerate(numpyx[:max_ch]):
             imwrite(sl, outfile=os.path.join(dir, f'{prefix}{i}.jpg'), normalize=True, optimize=True, compression=9)
 
-class SaveForwardChannelImagesSToseparateFoldersCB(LearnerForwardHook, CBMethod):
+class SaveForwardChannelImagesSToseparateFoldersCB(LearnerRegisterForwardHook, MethodCallback):
     def __init__(self, inputs, dir = 'forward channels', mkdir = True, filt = lambda x: not is_container(x),):
-        CBMethod.__init__(self)
-        LearnerForwardHook.__init__(self, filt=filt)
+        MethodCallback.__init__(self)
+        LearnerRegisterForwardHook.__init__(self, filt=filt)
 
         self.inputs = inputs
         self.dir = dir
@@ -129,7 +133,9 @@ class SaveForwardChannelImagesSToseparateFoldersCB(LearnerForwardHook, CBMethod)
 
     def after_test_epoch(self, learner:Learner):
         status = learner.status
+        self._register(learner)
         learner.inference(self.inputs, to_cpu = False, status="SaveSignalImagesCB")
+        self._unregister()
         learner.status = status
 
     def __call__(self, learner: Learner, name: str, module: torch.nn.Module, inputs: tuple[torch.Tensor], outputs: torch.Tensor):
@@ -151,10 +157,11 @@ class SaveForwardChannelImagesSToseparateFoldersCB(LearnerForwardHook, CBMethod)
             self.cur_module += 1
 
 
-class SaveForwardChannelImagesCB(LearnerForwardHook, CBMethod):
-    def __init__(self, inputs, dir = 'runs', mkdir = True, max_ch = 20, filt = lambda x: not is_container(x),):
-        CBMethod.__init__(self)
-        LearnerForwardHook.__init__(self, filt=filt)
+def is_not_container(x): return not is_container(x)
+class SaveForwardChannelImagesCB(LearnerRegisterForwardHook, MethodCallback):
+    def __init__(self, inputs:torch.Tensor, dir = 'runs', mkdir = True, max_ch = 20, filt = is_not_container,):
+        MethodCallback.__init__(self)
+        LearnerRegisterForwardHook.__init__(self, filt=filt)
 
         self.inputs = inputs
         self.dir = dir
@@ -170,37 +177,40 @@ class SaveForwardChannelImagesCB(LearnerForwardHook, CBMethod):
 
     def after_test_epoch(self, learner:Learner):
         status = learner.status
-        learner.inference(self.inputs, to_cpu = False, status="SaveForwardChannelImagesCB")
+        self._register(learner)
+        learner.inference(self.inputs, to_cpu = False)
+        self._unregister()
         learner.status = status
 
     def __call__(self, learner: Learner, name: str, module: torch.nn.Module, inputs: tuple[torch.Tensor], outputs: torch.Tensor):
-        if learner.status == 'SaveForwardChannelImagesCB':
-            if name in self.saved_modules:
-                self.cur_iter += 1
-                self.cur_module = 1
-                self.saved_modules = set()
+        if name in self.saved_modules:
+            self.cur_iter += 1
+            self.cur_module = 1
+            self.saved_modules = set()
 
-            if self.cur_iter == 1:
-                self.workdir = os.path.join(learner.get_workdir(self.dir, self.mkdir), 'forward channels')
-            if self.cur_module == 1:
-                self.cur_prefix = f'{self.cur_iter} - e{learner.total_epoch} b{learner.total_batch} c'
-                # save inputs
-                _save_3D_slices(inputs[0], os.path.join(self.workdir, '0 - inputs'), prefix=f'{self.cur_prefix}', max_ch=self.max_ch)
+        if self.cur_iter == 1:
+            self.workdir = os.path.join(learner.get_workdir(self.dir, self.mkdir), 'forward channels')
+            if not os.path.exists(self.workdir): os.mkdir(self.workdir)
+        if self.cur_module == 1:
+            self.cur_prefix = f'{self.cur_iter} - e{learner.total_epoch} b{learner.total_batch} c'
+            # save inputs
+            _save_3D_slices(inputs[0], os.path.join(self.workdir, '0 - inputs'), prefix=f'{self.cur_prefix}', max_ch=self.max_ch)
 
-            _save_3D_slices(outputs,
-                            dir = os.path.join(self.workdir, f'{to_valid_fname(name)} {tuple(outputs.shape)}'),
-                            prefix=f'{self.cur_prefix}',
-                            max_ch=self.max_ch,
-                            )
-            self.saved_modules.add(name)
-            self.cur_module += 1
+        _save_3D_slices(outputs,
+                        dir = os.path.join(self.workdir, f'{to_valid_fname(name)} {tuple(outputs.shape)}'),
+                        prefix=f'{self.cur_prefix}',
+                        max_ch=self.max_ch,
+                        )
+        self.saved_modules.add(name)
+        self.cur_module += 1
 
-class SaveBackwardChannelImagesCB(LearnerBackwardHook, CBMethod):
-    def __init__(self, inputs, dir = 'runs', mkdir = True, max_ch = 20, filt = lambda x: not is_container(x),):
-        CBMethod.__init__(self)
-        LearnerBackwardHook.__init__(self, filt=filt)
+class SaveBackwardChannelImagesCB(LearnerRegisterTensorBackwardHook, MethodCallback):
+    def __init__(self, inputs:torch.Tensor, targets:torch.Tensor, dir = 'runs', mkdir = True, max_ch = 20, filt = is_not_container, unsqueeze=False):
+        MethodCallback.__init__(self)
+        LearnerRegisterTensorBackwardHook.__init__(self, filt=filt)
 
-        self.inputs = inputs
+        self.inputs = inputs.unsqueeze(0) if unsqueeze else inputs[0]
+        self.targets = targets.unsqueeze(0) if unsqueeze else targets[0]
         self.dir = dir
         self.mkdir = mkdir
         self.max_ch = max_ch
@@ -214,10 +224,20 @@ class SaveBackwardChannelImagesCB(LearnerBackwardHook, CBMethod):
 
     def after_test_epoch(self, learner:Learner):
         status = learner.status
-        learner.inference(self.inputs, to_cpu = False, status="SaveBackwardChannelImagesCB")
+        self._register(learner)
+        learner.status = 'SaveBackwardChannelImagesCB'
+        with torch.enable_grad():
+            preds = learner.inference(self.inputs, to_cpu = False, mode = 'train', status="SaveBackwardChannelImagesCB", grad=True)
+            loss = learner.get_loss(preds, ensure_device(self.targets, learner.device))
+            learner.backward()
+            learner.zero_grad()
+        self._unregister()
         learner.status = status
 
-    def __call__(self, learner: Learner, name: str, module: torch.nn.Module, grad_input: tuple[torch.Tensor], grad_output: tuple[torch.Tensor]):
+    def _forward_hook(self, learner:Learner, name: str, module: torch.nn.Module, input:torch.Tensor, output:torch.Tensor):
+        if learner.status == 'SaveBackwardChannelImagesCB': output.register_hook(functools.partial(self, learner, name, module))
+
+    def __call__(self, learner: Learner, name: str, module: torch.nn.Module, grad_output: torch.Tensor):
         if learner.status == 'SaveBackwardChannelImagesCB':
             if name in self.saved_modules:
                 self.cur_iter += 1
@@ -226,18 +246,15 @@ class SaveBackwardChannelImagesCB(LearnerBackwardHook, CBMethod):
 
             if self.cur_iter == 1:
                 self.workdir = os.path.join(learner.get_workdir(self.dir, self.mkdir), 'backward channels')
+                if not os.path.exists(self.workdir): os.mkdir(self.workdir)
             if self.cur_module == 1:
                 self.cur_prefix = f'{self.cur_iter} - e{learner.total_epoch} b{learner.total_batch} c'
-                # save inputs
-                if grad_input[0] is not None:
-                    _save_3D_slices(grad_input[0], os.path.join(self.workdir, '0 - grad inputs'), prefix=f'{self.cur_prefix}', max_ch=self.max_ch)
 
             if grad_output[0] is not None:
-                _save_3D_slices(grad_output[0],
+                _save_3D_slices(grad_output,
                                 dir = os.path.join(self.workdir, f'{to_valid_fname(name)} {tuple(grad_output[0].shape)}'),
                                 prefix=f'{self.cur_prefix}',
                                 max_ch=self.max_ch,
                                 )
                 self.saved_modules.add(name)
                 self.cur_module += 1
-

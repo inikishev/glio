@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import monai.metrics
 
 from .Learner import Learner
-from ..design.EventModel import Callback, EventModel, CBMethod
+from ..design.EventModel import Callback, EventModel, MethodCallback
 from ..torch_tools import one_hot_mask
 from .cbs_metrics import CBMetric
 
@@ -136,7 +136,7 @@ MONAI_CM_METRICS = (
 )
 
 
-class MONAIConfusionMatrixMetricsCB(CBMethod):
+class MONAIConfusionMatrixMetricsCB(MethodCallback):
     order = 1
     def __init__(self, classes:Sequence, metrics = MONAI_CM_METRICS, prefix='', include_bg=True):
         super().__init__()

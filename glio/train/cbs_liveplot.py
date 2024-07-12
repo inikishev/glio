@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from typing import Any,Optional
-from ..design.EventModel import CBMethod
+from ..design.EventModel import MethodCallback
 from ..python_tools import type_str
 from .Learner import Learner
 
@@ -13,7 +13,7 @@ __all__ = [
     "PlotSummaryCB",
 ]
 
-class LivePlotCB(CBMethod):
+class LivePlotCB(MethodCallback):
     order = 95
     def __init__(  # pylint:disable = W0102
         self,
@@ -84,7 +84,7 @@ class LivePlotCB(CBMethod):
 
 
 
-class LivePlot2CB(CBMethod):
+class LivePlot2CB(MethodCallback):
     order = 95
     def __init__(  # pylint:disable = W0102
         self,
@@ -118,7 +118,7 @@ class LivePlot2CB(CBMethod):
 
 
 
-class PlotSummaryCB(CBMethod):
+class PlotSummaryCB(MethodCallback):
     def __init__(self, figsize=8, nrow = None, ncol=2, save=True, show=False, path = '.', save_ext='png'):
         self.figsize = figsize
         self.nrow, self.ncol = nrow, ncol

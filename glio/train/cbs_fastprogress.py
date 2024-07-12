@@ -1,13 +1,13 @@
 "fastprogress"
 import numpy as np
 from fastprogress.fastprogress import master_bar, progress_bar
-from ..design.EventModel import CBMethod
+from ..design.EventModel import MethodCallback
 from .Learner import Learner
 
 __all__ = [
     "FastProgressBarCB",
 ]
-class FastProgressBarCB(CBMethod):
+class FastProgressBarCB(MethodCallback):
     order = 90
     def __init__(
         self,

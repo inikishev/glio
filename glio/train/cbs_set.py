@@ -1,7 +1,7 @@
 """asdnjkhaoldloasdnasiujadklodigsdauhlasdasdaskdbasdbaskhdaskjhdasdhjkbaskdbhaskdhsakdhlasdlasdas."""
 from typing import Callable
 import torch
-from ..design.EventModel import CBContext
+from ..design.EventModel import BasicCallback
 from .Learner import Learner
 
 __all__ = [
@@ -9,7 +9,7 @@ __all__ = [
     "SetLossFnCB", 
     "SetSchedulerCB",
 ]
-class SetOptimizerCB(CBContext):
+class SetOptimizerCB(BasicCallback):
     """Sets optimizer"""
     def __init__(self, optimizer: torch.optim.Optimizer):
         super().__init__()
@@ -22,7 +22,7 @@ class SetOptimizerCB(CBContext):
     def exit(self, learner: "Learner"):
         learner.optimizer = self.backup
 
-class SetLossFnCB(CBContext):
+class SetLossFnCB(BasicCallback):
     """Sets loss function"""
     def __init__(self, loss_fn: Callable):
         super().__init__()
@@ -35,7 +35,7 @@ class SetLossFnCB(CBContext):
     def exit(self, learner: "Learner"):
         learner.loss_fn = self.backup
 
-class SetSchedulerCB(CBContext):
+class SetSchedulerCB(BasicCallback):
     """Sets scheduler"""
     def __init__(self, scheduler: torch.optim.lr_scheduler.LRScheduler):
         super().__init__()
@@ -48,7 +48,7 @@ class SetSchedulerCB(CBContext):
     def exit(self, learner: "Learner"):
         learner.scheduler = self.backup
 
-class SetStatusCB(CBContext):
+class SetStatusCB(BasicCallback):
     def __init__(self, status): 
         self.status = status
     def enter(self, learner: Learner):
