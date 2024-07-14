@@ -1,5 +1,7 @@
 "fastprogress"
+from collections.abc import Sequence
 import numpy as np
+from scipy.signal import convolve
 from fastprogress.fastprogress import master_bar, progress_bar
 from ..design.EventModel import MethodCallback
 from .Learner import Learner
@@ -17,7 +19,7 @@ class FastProgressBarCB(MethodCallback):
         step_epoch=None,
         fit=True,
         plot_max=4096,
-        smooth=None,
+        smooth:None | int | Sequence[None | int]=None,
         maxv=None,
     ):
         super().__init__()
@@ -47,8 +49,8 @@ class FastProgressBarCB(MethodCallback):
                 metrics = [([list(m.keys())[::reduction[i]], list(m.values())[::reduction[i]]] if reduction[i]>1 else [list(m.keys()), list(m.values())]) for i, m in enumerate(metrics)]
                 if self.smooth:
                     for i in range(len(metrics)):
-                        if self.smooth[i] is not None and self.smooth[i] > 1 and len(metrics[i][1]) > self.smooth[i]:
-                            metrics[i][1] = np.convolve(metrics[i][1], np.ones(self.smooth[i])/self.smooth[i], 'same') # type:ignore
+                        if self.smooth[i] is not None and self.smooth[i] > 1 and len(metrics[i][1]) > self.smooth[i]: # type:ignore
+                            metrics[i][1] = convolve(metrics[i][1], np.ones(self.smooth[i])/self.smooth[i], 'same') # type:ignore
                 try:
                     self.mbar.update_graph(metrics)
                 except AttributeError: pass

@@ -73,10 +73,16 @@ class SaveBestCB(EventCallback):
 class SaveLastCB(EventCallback):
     event = "after_fit"
     order = 1 # needs to run after metrics are calculated
-    def __init__(self, dir = "runs", serialize=False): #pylint:disable=W0102
+    def __init__(self, dir = "runs", serialize=False, clean_empty=True): #pylint:disable=W0102
         super().__init__()
         self.dir = dir
         self.serialize = serialize
+        self.clean_empty = clean_empty
 
     def __call__(self, learner: Learner):
         learner.checkpoint(dir = f'{learner.get_prefix_epochbatch_dir(self.dir,  "checkpoints")}', serialize=self.serialize, mkdir=True)
+        if self.clean_empty:
+            path = os.path.join(learner.get_workdir(self.dir), 'checkpoints')
+            for dir in os.listdir(path):
+                pathdir = os.path.join(path, dir)
+                if os.path.isdir(pathdir) and len(os.listdir(pathdir)) == 0: os.rmdir(pathdir)

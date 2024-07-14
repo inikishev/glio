@@ -1,7 +1,7 @@
 """sss"""
 from collections.abc import Iterable, Callable, Sequence
 from abc import ABC, abstractmethod
-from typing import Optional, Any, TYPE_CHECKING, final
+from typing import Optional, Any, TYPE_CHECKING, final, Literal
 import os, pathlib, shutil
 from datetime import datetime
 
@@ -83,6 +83,7 @@ class Learner(EventModel):
         accelerator: Optional["Accelerator"] = None,
         device: Optional[torch.device] = CUDA_IF_AVAILABLE,
         logger: Optional[Logger] = None,
+        wandb_run = None,
         default_cbs: Optional[Iterable[Callback]] = DEFAULT_CBS,
     ):
         self.model: torch.nn.Module = model
@@ -93,6 +94,7 @@ class Learner(EventModel):
         self.accelerator: Optional["Accelerator"] = accelerator
         self.device: Optional[torch.device] = device
         self.logger: Logger = logger if logger is not None else Logger()
+        self.wandb_run = wandb_run
 
         self.cur_batch:int = 0
         """Current batch in epoch."""
@@ -694,6 +696,59 @@ callbacks:
 
     def set_lr(self, lr:float | Callable):
         from ..torch_tools import set_lr_
-        set_lr_(self.optimizer, lr) # type:ignore
+        set_lr_(self.optimizer, lr)  # type:ignore
+
+    def wandb_init(
+        self,
+        project: str,
+        name: Optional[str],
+        config: dict,
+        notes: Optional[str] = None,
+        tags: Sequence | None = None,
+        magic: bool = True,
+        save_code: bool = True,
+        watch: bool = True,
+        watch_step: int = 32,
+    ):
+        import wandb
+        self.project = project
+        self.config = config
+        self.last_wandb_logged_batch = 0
+
+        self.wandb_run = wandb.init(
+            project = self.project,
+            name = name,
+            config = self.config,
+            notes = notes,
+            tags = tags,
+            magic = magic,
+            save_code = save_code,
+        )
+
+        if watch: self.wandb_watch(watch_step=watch_step)
+
+    def wandb_watch(self, source:Literal["gradients", "parameters", "all"] | None = "all",  watch_step = 32):
+        self.wandb_run.watch(self.model, log = source, log_freq=watch_step) # type:ignore
+
+    def wandb_log(self, metric, value, commit=False):
+        self.wandb_run.log({metric: value}, step = self.total_batch, commit=commit) # type:ignore
+
+    def wandb_update(self, commit=False):
+        for batch in range(self.last_wandb_logged_batch, self.total_batch+1):
+            train_metrics = {}
+            test_metrics = {}
+            other_metrics = {}
+            for key, value in self.logger.logs.items():
+                if batch in value:
+                    if 'train' in key: train_metrics[key] = value[batch]
+                    elif 'test' in key: test_metrics[key] = value[batch]
+                    else: other_metrics[key] = value[batch]
+                metrics = {"train": train_metrics, "test": test_metrics, **other_metrics}
+                self.wandb_run.log(metrics, step=batch, commit=commit) # type:ignore
+
+            self.last_wandb_logged_batch += 1
+
+    def wandb_finalize(self):
+        self.wandb_run.finish() # type:ignore
 
 class LearnerWithPerformanceDebugging(Learner, EventModelWithPerformanceDebugging): pass

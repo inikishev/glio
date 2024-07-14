@@ -2,8 +2,10 @@
 from collections.abc import Sequence
 import os
 import functools
+import math
 
 import torch
+from torchvision.utils import make_grid
 import numpy as np
 from PIL import Image
 
@@ -101,21 +103,44 @@ class LogLayerGradHistorgramCB(LearnerBackwardHook, BasicCallback):
                 learner.log(f'{name} output grad histogram', hist)
 
 
-def _save_3D_slices(x:torch.Tensor, dir:str, prefix = '', mkdir=True, max_numel = 1024 * 1024, max_ch = 32):
+def _save_3D_slices_separately(x:torch.Tensor, dir:str, fname:str, mkdir=True, max_numel = 1024 * 1024, max_ch = 32):
     x = x[0]
     if x.ndim not in (2, 3): return
     if x.ndim == 2:
         if x.numel() > max_numel: return
         if mkdir and not os.path.exists(dir): os.mkdir(dir)
-        imwrite(x, outfile=os.path.join(dir, f'{prefix}2D.jpg'), normalize=True, optimize=True, compression=9)
+        imwrite(x, outfile=os.path.join(dir, f'{fname}2D.jpg'), normalize=True, optimize=True, compression=9)
 
     elif x.ndim == 3:
         if x[0].numel() > max_numel: return
         if mkdir and not os.path.exists(dir): os.mkdir(dir)
         numpyx: np.ndarray = x.detach().cpu().numpy()
         for i,sl in enumerate(numpyx[:max_ch]):
-            imwrite(sl, outfile=os.path.join(dir, f'{prefix}{i}.jpg'), normalize=True, optimize=True, compression=9)
+            imwrite(sl, outfile=os.path.join(dir, f'{fname}{i}.jpg'), normalize=True, optimize=True, compression=9)
 
+def _save_3D_slices_grid(x:torch.Tensor, dir:str, fname:str, mkdir=True, max_numel = 1024 * 1024, max_ch = 32):
+    x = x[0]
+    if x.ndim not in (2, 3): return
+    if x.ndim == 2:
+        if x.numel() > max_numel: return
+        if mkdir and not os.path.exists(dir): os.mkdir(dir)
+        imwrite(x, outfile=os.path.join(dir, f'{fname}.png'), normalize=True, optimize=True, compression=9)
+
+    elif x.ndim == 3:
+        if x[0].numel() > max_numel: return
+        if mkdir and not os.path.exists(dir): os.mkdir(dir)
+        x_bchw = x[:max_ch].unsqueeze(1)
+        grid = make_grid(x_bchw, nrow=max(1, int(math.ceil(len(x_bchw)**0.5))), padding=2, normalize=True, scale_each=True, pad_value=0.5)
+        #print(grid.shape)
+        imwrite(grid[0].detach().cpu().numpy(), os.path.join(dir, f'{fname}.png'), normalize=True, optimize=True, compression=9)
+        # numpyx: np.ndarray = x.detach().cpu().numpy()
+        # for i,sl in enumerate(numpyx[:max_ch]):
+        #     imwrite(sl, outfile=os.path.join(dir, f'{prefix}{i}.jpg'), normalize=True, optimize=True, compression=9)
+
+_SLICE_SAVING_MODES = {
+    'separate': _save_3D_slices_separately,
+    'grid': _save_3D_slices_grid,
+}
 class SaveForwardChannelImagesSToseparateFoldersCB(LearnerRegisterForwardHook, MethodCallback):
     def __init__(self, inputs, dir = 'forward channels', mkdir = True, filt = lambda x: not is_container(x),):
         MethodCallback.__init__(self)
@@ -150,16 +175,16 @@ class SaveForwardChannelImagesSToseparateFoldersCB(LearnerRegisterForwardHook, M
                 self.cur_dir = os.path.join(self.workdir, f'{self.cur_iter} - {learner.total_epoch} {learner.total_batch}')
                 if not os.path.exists(self.cur_dir): os.mkdir(self.cur_dir)
                 # save inputs
-                _save_3D_slices(inputs[0], os.path.join(self.cur_dir, '0 - inputs'))
+                _save_3D_slices_separately(inputs[0], os.path.join(self.cur_dir, '0 - inputs'), fname='')
 
-            _save_3D_slices(outputs, os.path.join(self.cur_dir, f'{to_valid_fname(name)} {tuple(outputs.shape)}'))
+            _save_3D_slices_separately(outputs, os.path.join(self.cur_dir, f'{to_valid_fname(name)} {tuple(outputs.shape)}'), fname='')
             self.saved_modules.add(name)
             self.cur_module += 1
 
 
 def is_not_container(x): return not is_container(x)
 class SaveForwardChannelImagesCB(LearnerRegisterForwardHook, MethodCallback):
-    def __init__(self, inputs:torch.Tensor, dir = 'runs', mkdir = True, max_ch = 20, filt = is_not_container,):
+    def __init__(self, inputs:torch.Tensor, dir = 'runs', mkdir = True, max_ch = 42, filt = is_not_container, mode='grid'):
         MethodCallback.__init__(self)
         LearnerRegisterForwardHook.__init__(self, filt=filt)
 
@@ -172,6 +197,8 @@ class SaveForwardChannelImagesCB(LearnerRegisterForwardHook, MethodCallback):
         self.cur_prefix = ''
         self.cur_iter = 1
         self.cur_module = 1
+
+        self.save_3d_slices_fn = _SLICE_SAVING_MODES[mode]
 
         self.saved_modules = set()
 
@@ -194,18 +221,18 @@ class SaveForwardChannelImagesCB(LearnerRegisterForwardHook, MethodCallback):
         if self.cur_module == 1:
             self.cur_prefix = f'{self.cur_iter} - e{learner.total_epoch} b{learner.total_batch} c'
             # save inputs
-            _save_3D_slices(inputs[0], os.path.join(self.workdir, '0 - inputs'), prefix=f'{self.cur_prefix}', max_ch=self.max_ch)
+            self.save_3d_slices_fn(inputs[0], os.path.join(self.workdir, '0 - inputs'), fname=f'{self.cur_prefix}', max_ch=self.max_ch)
 
-        _save_3D_slices(outputs,
+        self.save_3d_slices_fn(outputs,
                         dir = os.path.join(self.workdir, f'{to_valid_fname(name)} {tuple(outputs.shape)}'),
-                        prefix=f'{self.cur_prefix}',
+                        fname=f'{self.cur_prefix}',
                         max_ch=self.max_ch,
                         )
         self.saved_modules.add(name)
         self.cur_module += 1
 
 class SaveBackwardChannelImagesCB(LearnerRegisterTensorBackwardHook, MethodCallback):
-    def __init__(self, inputs:torch.Tensor, targets:torch.Tensor, dir = 'runs', mkdir = True, max_ch = 20, filt = is_not_container, unsqueeze=False):
+    def __init__(self, inputs:torch.Tensor, targets:torch.Tensor, dir = 'runs', mkdir = True, max_ch = 42, filt = is_not_container, unsqueeze=False, mode='grid'):
         MethodCallback.__init__(self)
         LearnerRegisterTensorBackwardHook.__init__(self, filt=filt)
 
@@ -219,6 +246,8 @@ class SaveBackwardChannelImagesCB(LearnerRegisterTensorBackwardHook, MethodCallb
         self.cur_prefix = ''
         self.cur_iter = 1
         self.cur_module = 1
+
+        self.save_3d_slices_fn = _SLICE_SAVING_MODES[mode]
 
         self.saved_modules = set()
 
@@ -251,9 +280,9 @@ class SaveBackwardChannelImagesCB(LearnerRegisterTensorBackwardHook, MethodCallb
                 self.cur_prefix = f'{self.cur_iter} - e{learner.total_epoch} b{learner.total_batch} c'
 
             if grad_output[0] is not None:
-                _save_3D_slices(grad_output,
+                self.save_3d_slices_fn(grad_output,
                                 dir = os.path.join(self.workdir, f'{to_valid_fname(name)} {tuple(grad_output[0].shape)}'),
-                                prefix=f'{self.cur_prefix}',
+                                fname=f'{self.cur_prefix}',
                                 max_ch=self.max_ch,
                                 )
                 self.saved_modules.add(name)

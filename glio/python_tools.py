@@ -765,18 +765,20 @@ def rename_dict_key_contains(d:dict, contains:Any, new_key:Any) -> dict:
 class ImpossibleException(Exception): pass
 
 
-def sequence_to_markdown(s:Sequence, keys:Optional[Sequence] = None, keys_from_s = False, transpose=False) -> str:
+def sequence_to_md_table(s:Sequence[Sequence], keys:Optional[Sequence] = None, first_row_keys = False, transpose=False) -> str:
     """s: [row1, row2, row3, ...], or if `transpose` is [col1, col2, col3].
 
     Args:
         s (Sequence): _description_
         keys (Optional[Sequence], optional): _description_. Defaults to None.
-        keys_from_s (bool, optional): _description_. Defaults to False.
+        first_row_keys (bool, optional): _description_. Defaults to False.
     """
     if transpose: s = list(zip(*s))
 
     if keys is None:
-        if keys_from_s: keys = s[0]
+        if first_row_keys: 
+            keys = s[0]
+            s = s[1:]
         else: keys = list(range(len(s)))
 
     if keys is None: raise ValueError("This can't happen...")
@@ -827,3 +829,5 @@ def to_valid_varname(string:str, fallback = '_', empty_fallback = 'empty', first
     name =  ''.join([(c if c == '_' or c.isalnum() else fallback) for c in string[:maxlen]])
     if name[0].isdigit(): name = f'{firstdigit_fallback}{name}'
     return name
+
+

@@ -37,9 +37,13 @@ class Plot:
             ax = tfm(ax)
         return ax
 
-    def from_ax(self, ax:Axes):
+    def set_ax(self, ax:Axes):
         self.tfms.append(lambda _: ax)
         return self
+
+    @classmethod
+    def from_ax(cls, ax:Axes):
+        return cls([lambda _: ax])
 
     def plot(self, *args, label=None, color=None, alpha=None, linewidth=None, linestyle = None, xlim=None, ylim=None, **kwargs) -> "Plot":
         def plot(ax:Axes) -> Axes:
@@ -245,6 +249,7 @@ class Plot:
         ignore_bg=True,
         alpha=0.3,
         colors=('red', 'green', 'blue', 'yellow', 'cyan', 'magenta', 'white'),
+        bg_alpha:float = 0.,
         **kwargs,
     ):
         """Overlay up to 7 classes of segmentation, where each pixel is has only one class."""
@@ -280,7 +285,7 @@ class Plot:
             #print(segm)
             else: raise ValueError(f'invalid color {color} in {colors = }')
 
-        segm[3] = torch.where(segm[:3].amax(0) > torch.tensor(0), torch.tensor(int(alpha*255)), torch.tensor(0))
+        segm[3] = torch.where(segm[:3].amax(0) > torch.tensor(0), torch.tensor(int(alpha*255)), torch.tensor(bg_alpha))
 
         def seg_overlay(ax:Axes) -> Axes:
             ax.imshow(segm.permute(1,2,0), **kwargs)
@@ -696,7 +701,7 @@ def _create_fig(ax) -> tuple[Figure, Plot]:
     """Creates a figure and a plot on it, optionally from ax. Returns (Figure, Plot)"""
     fig = Figure()
     if ax is None: return fig, fig.add()
-    return fig, fig.add().from_ax(ax)
+    return fig, fig.add().set_ax(ax)
 
 def qplot(
     data,

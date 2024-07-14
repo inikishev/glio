@@ -1,18 +1,17 @@
 """Callbacks"""
 
 from .Learner import *
+from .metrics import *
+
 from .cbs_set import *
 from .cbs_log import *
 from .cbs_debug import *
 from .cbs_grad import *
-from .cbs_metrics import *
 from .cbs_hooks import *
 from .cbs_updatestats import *
 from .cbs_save import *
 from .cbs_priming import *
 from .cbs_summary import *
-from .cbs_monai import *
-from .cbs_torcheval import *
 from .cbs_liveplot import *
 from .cbs_simpleprogress import *
 from .cbs_default_overrides import *

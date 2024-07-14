@@ -2,9 +2,10 @@
 from collections.abc import Callable, Sequence
 from typing import Any, Optional
 import logging
+from bisect import insort
 import matplotlib.pyplot as plt, numpy as np, torch
 from ..plot import qimshow, qimshow_grid, Figure, qpath2d
-from ..python_tools import flexible_filter
+from ..python_tools import flexible_filter, sequence_to_md_table
 
 __all__ = [
     'Logger',
@@ -12,6 +13,7 @@ __all__ = [
 class Logger:
     def __init__(self):
         self.logs: dict[str, dict[int, Any]] = {}
+        self.batch = 0
 
     def __getitem__(self, key):
         return self.logs[key]
@@ -37,7 +39,7 @@ class Logger:
         """
         return any(substring in key for key in self.logs)
 
-    def __call__(self, key): 
+    def __call__(self, key):
         """Returns a list of keys and values for the given key.
 
         Args:
@@ -59,6 +61,7 @@ class Logger:
         if isinstance(value, torch.Tensor): value = value.detach().cpu()
         if metric not in self.logs: self.logs[metric] = {cur_batch: value}
         else: self.logs[metric][cur_batch] = value
+        if self.batch < cur_batch: self.batch = cur_batch
 
     def set(self, metric, value, cur_batch=0):
         """Sets a metric under a given batch. Also useful for logging stuff that you only need the last value of.
@@ -69,17 +72,18 @@ class Logger:
             cur_batch (int, optional): _description_. Defaults to 0.
         """
         self.logs[metric][cur_batch] = value
+        if self.batch < cur_batch: self.batch = cur_batch
 
     def keys(self): return self.logs.keys()
     def values(self): return self.logs.values()
     def items(self): return self.logs.items()
 
-    def clear(self): 
+    def clear(self):
         """Removes all data from the logger.
         """
         self.logs = {}
 
-    def toarray(self, key): 
+    def toarray(self, key):
         """Returns an array of values.
 
         Args:
@@ -89,7 +93,7 @@ class Logger:
             _type_: _description_
         """
         return np.array(list(self.logs[key].values()), copy = False)
-    def tolist(self, key): 
+    def tolist(self, key):
         """Returns a list of values.
 
         Args:
@@ -113,7 +117,7 @@ class Logger:
         return torch.from_numpy(np.asanyarray(list(self.logs[key].values())))
 
     def get_keys_num(self):
-        """Returns number of items in the logger with scalar last value.
+        """Returns all keys in the logger with scalar last value.
 
         Returns:
             _type_: _description_
@@ -126,7 +130,7 @@ class Logger:
         return keys
 
     def get_keys_vec(self):
-        """Returns number of items in the logger with vector (1D) last value.
+        """Returns all keys in the logger with vector (1D) last value.
 
         Returns:
             _type_: _description_
@@ -139,7 +143,7 @@ class Logger:
         return keys
 
     def get_keys_img(self):
-        """Returns number of items in the logger with 2D or 3D array as the last value.
+        """Returns all keys in the logger with 2D or 3D array as the last value.
 
         Returns:
             _type_: _description_
@@ -171,6 +175,30 @@ class Logger:
             _type_: _description_
         """
         return min(self.tolist(key)) # pyright:ignore
+
+
+    def first(self, key):
+        """Returns first recorded value of the `key` metric.
+
+        Args:
+            key (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        return self.tolist(key)[0]
+
+    def num(self, key):
+        """Returns number of values recorded in the `key` metric.
+
+        Args:
+            key (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        return len(self[key])
+
 
     def last(self, key):
         """Returns last recorded value of the `key` metric.
@@ -361,3 +389,25 @@ class Logger:
             text += "\n"
 
         return text
+
+    def to_md_table_str(self):
+        keys = sorted(self.get_keys_num())
+        keys_sorted = [i for i in keys if 'train' not in i]
+        for key in keys:
+            if 'train' in key:
+                if key.replace('train', 'test') in keys_sorted:
+                    keys_sorted.insert(keys_sorted.index(key.replace('train', 'test')), key)
+                else:
+                    insort(keys_sorted, key)
+
+        table:list[list[Any]] = [['metric', 'n', 'min', 'max', 'first', 'last',]]
+        for key in keys_sorted:
+            l = self.tolist(key)
+            table.append([key, len(l), f'{np.nanmin(l):.4f}',  f'{np.nanmax(l):.4f}', f'{float(l[0]):.4f}', f'{float(l[-1]):.4f}',])
+        return table
+
+    def display_table(self):
+        from IPython.display import display, Markdown
+        table = self.to_md_table_str()
+        md = sequence_to_md_table(table, first_row_keys=True)
+        display(Markdown(md))

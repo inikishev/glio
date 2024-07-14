@@ -193,7 +193,7 @@ def sequence_to_table(s:Sequence, keys:Optional[Sequence] = None, keys_from_s = 
         This function requires IPython and python_tools module to be imported.
     """
 
-    from .python_tools import sequence_to_markdown
-    md = sequence_to_markdown(s, keys=keys, keys_from_s=keys_from_s, transpose=transpose)
+    from .python_tools import sequence_to_md_table
+    md = sequence_to_md_table(s, keys=keys, keys_from_s=keys_from_s, transpose=transpose)
     from IPython.display import Markdown, display
     display(Markdown(md))

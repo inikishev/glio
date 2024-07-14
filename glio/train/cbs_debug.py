@@ -7,6 +7,7 @@ __all__ = [
     'CondPrintLossCB',
     "CondGCCOllectCB",
     "CondPrintFirstParamCB",
+    "CondPrintStatusCB",
 ]
 
 class CondPrintLossCB(ConditionCallback):
@@ -18,7 +19,12 @@ class CondGCCOllectCB(ConditionCallback):
     def __call__(self, learner:Learner):
         gc.collect()
 
-class CondPrintFirstParamCB(MethodCallback):
+class CondPrintFirstParamCB(ConditionCallback):
     """Can help see if parameters update or not."""
-    def after_train_batch(self, learner:Learner):
+    def __call__(self, learner:Learner):
         print(list(learner.model.parameters())[0])
+        
+        
+class CondPrintStatusCB(ConditionCallback):
+    def __call__(self, learner: "Learner"):
+        print(f'{learner.cur_batch = }; {learner.cur_epoch = }; {learner.status = }', end="; ")

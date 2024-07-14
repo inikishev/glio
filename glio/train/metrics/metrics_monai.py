@@ -4,10 +4,10 @@ import torch
 import torch.nn.functional as F
 import monai.metrics
 
-from .Learner import Learner
-from ..design.EventModel import Callback, EventModel, MethodCallback
-from ..torch_tools import one_hot_mask
-from .cbs_metrics import CBMetric
+from ..Learner import Learner
+from ...design.EventModel import MethodCallback
+from ...torch_tools import one_hot_mask
+from .metric_callback import MetricCallback
 
 __all__ = [
     "MONAIDiceCB",
@@ -18,7 +18,7 @@ __all__ = [
 ]
 
 
-class MONAIDiceCB(CBMetric):
+class MONAIDiceCB(MetricCallback):
     def __init__(self, num_classes, argmax_preds = True, argmax_targets = False, ignore_bg = False, step=1, name="dice"):
         """Dice (2 overlaps divided by sum), also same as F1 score.
 
@@ -44,7 +44,7 @@ class MONAIDiceCB(CBMetric):
         else: targets = learner.targets
         return float(monai.metrics.compute_dice(preds, targets, include_background=self.include_background, num_classes=self.num_classes).nanmean()) # type:ignore #pylint:disable=E1101
 
-class MONAIGDiceCB(CBMetric):
+class MONAIGDiceCB(MetricCallback):
     def __init__(self, num_classes, argmax_preds = True, argmax_targets = False, ignore_bg = False, step=1, name="generalized dice"):
         super().__init__(train = True, test = True)
         self.num_classes = num_classes
@@ -61,7 +61,7 @@ class MONAIGDiceCB(CBMetric):
         return float(monai.metrics.compute_generalized_dice(preds, targets, include_background=self.include_background).nanmean()) # type:ignore #pylint:disable=E1101
 
 
-class MONAIIoUCB(CBMetric):
+class MONAIIoUCB(MetricCallback):
     def __init__(self, num_classes, argmax_preds = True, argmax_targets = False, ignore_bg = False, step=1, name="iou"):
         """Jaccard index, intersection over union.
 
@@ -90,7 +90,7 @@ class MONAIIoUCB(CBMetric):
         return float(monai.metrics.compute_iou(preds, targets, include_background=self.include_background).nanmean()) # type:ignore
 
 
-class MONAIRocAucCB(CBMetric):
+class MONAIRocAucCB(MetricCallback):
     def __init__(self, num_classes, to_onehot_targets = False, ignore_bg = False, average='macro', step=1, teststep = 1, name="roc auc"):
         super().__init__(train = True, test = True)
         self.num_classes = num_classes
@@ -138,11 +138,11 @@ MONAI_CM_METRICS = (
 
 class MONAIConfusionMatrixMetricsCB(MethodCallback):
     order = 1
-    def __init__(self, classes:Sequence, metrics = MONAI_CM_METRICS, prefix='', include_bg=True):
+    def __init__(self, class_labels:Sequence, metrics = MONAI_CM_METRICS, prefix='', include_bg=True):
         super().__init__()
         self.metrics = metrics
         self.prefix = prefix
-        self.classes = classes
+        self.class_labels = class_labels
         self.include_bg = include_bg
 
         self.list_of_cm = []
@@ -167,7 +167,7 @@ class MONAIConfusionMatrixMetricsCB(MethodCallback):
         cm = torch.cat(self.list_of_cm, 0)
         for metric in self.metrics:
             values = monai.metrics.compute_confusion_matrix_metric(metric, cm).nanmean(0) # type:ignore
-            for cls, val in zip(self.classes, values):
+            for cls, val in zip(self.class_labels, values):
                 if val is not None:
                     learner.log(f'test {self.prefix}{metric} - {cls}', val) # type:ignore
 

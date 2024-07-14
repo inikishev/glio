@@ -518,12 +518,39 @@ def area_around(tensor:torch.Tensor, coord, size) -> torch.Tensor:
 
 
 def one_hot_mask(mask: torch.Tensor, num_classes:int) -> torch.Tensor:
+    """Takes a mask (*) and one-hot encodes into C(*)
+
+    Args:
+        mask (torch.Tensor): B(*) tensor.
+        num_classes (int): _description_
+
+    Raises:
+        NotImplementedError: _description_
+
+    Returns:
+        torch.Tensor: _description_
+    """
     if mask.ndim == 3:
         return torch.nn.functional.one_hot(mask.to(torch.int64), num_classes).permute(3, 0, 1, 2).to(torch.float32) # pylint:disable=E1102 #type:ignore
     elif mask.ndim == 2:
         return torch.nn.functional.one_hot(mask.to(torch.int64), num_classes).permute(2, 0, 1).to(torch.float32) # pylint:disable=E1102 #type:ignore
     else: raise NotImplementedError(f'one_hot_mask: mask.ndim = {mask.ndim}')
 
+batched_one_hot_mask = torch.vmap(one_hot_mask)
+
+def raw_preds_to_one_hot(raw: torch.Tensor) -> torch.Tensor:
+    """Takes raw model predictions in C(*) format and turns into one-hot encoding in C(*) format.
+
+    Args:
+        raw (torch.Tensor): BC(*) tensor.
+
+    Returns:
+        torch.Tensor: _description_
+    """
+    mask = torch.argmax(raw, dim=0)
+    return one_hot_mask(mask, raw.shape[0])
+
+batched_raw_preds_to_one_hot = torch.vmap(raw_preds_to_one_hot)
 
 def count_parameters(model):
     return sum([p.numel() for p in model.parameters() if p.requires_grad])
