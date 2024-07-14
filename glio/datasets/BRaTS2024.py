@@ -5,7 +5,7 @@ import polars as pl
 import torch, numpy as np
 from monai import transforms as mtf
 import SimpleITK as sitk
-from glio.loaders import niireadtensor
+from glio.loaders.nifti import niireadtensor
 from glio.transforms.intensity import norm, znorm
 from torchvision.transforms import v2
 

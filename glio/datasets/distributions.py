@@ -197,9 +197,9 @@ class DistributionLabeled:
         if shuffle: np.random.shuffle(self.indexes)
         for i in range(0, len(self.indexes), batch_size):
             self.cur += batch_size
-            yield self[self.indexes[i:i+batch_size]]
+            yield self[self.indexes[i:i+batch_size]] # type:ignore
         if remainder and self.cur < len(self.df):
-            yield self[self.indexes[self.cur:]]
+            yield self[self.indexes[self.cur:]] # type:ignore
 
     def __len__(self):
         return len(self.df)

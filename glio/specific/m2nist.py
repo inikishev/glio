@@ -18,7 +18,7 @@ _CBSTUFF = lambda:  [
 
 _CBMETRICS = lambda: [
     LogLossCB(),
-    MetricAccuracyCB(True, True, False, step=8),
+    MetricAccuracyCB(step=8),
     MONAIIoUCB(11, True, True, step=8),
     TorchevalPrecisionCB(11, True, True, step=8),
     TorchevalRecallCB(11, True, True, step=8),

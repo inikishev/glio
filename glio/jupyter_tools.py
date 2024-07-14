@@ -178,7 +178,7 @@ def show_slices_arr(sliceable):
     return interact(f, permute=permute,color=False, **kwargs)
 
 
-def sequence_to_table(s:Sequence, keys:Optional[Sequence] = None, keys_from_s = False, transpose=False):
+def sequence_to_table(s:Sequence, keys:Optional[Sequence] = None, first_row_keys = False, transpose=False):
     """Display a sequence as a table in Jupyter notebook using Markdown format.
 
     Args:
@@ -194,6 +194,6 @@ def sequence_to_table(s:Sequence, keys:Optional[Sequence] = None, keys_from_s = 
     """
 
     from .python_tools import sequence_to_md_table
-    md = sequence_to_md_table(s, keys=keys, keys_from_s=keys_from_s, transpose=transpose)
+    md = sequence_to_md_table(s, keys=keys, first_row_keys=first_row_keys, transpose=transpose)
     from IPython.display import Markdown, display
     display(Markdown(md))
