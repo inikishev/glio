@@ -1,4 +1,4 @@
-from typing import Optional, Any
+from typing import Optional, Any, Literal
 from collections.abc import Callable, Sequence
 import math
 
@@ -25,7 +25,8 @@ __all__ = [
     'qplot',
     'qpath10d',
     'qpath2d',
-    'qimshow_grid'
+    'qimshow_grid',
+    'qfuncplot1d',
 ]
 
 class Plot:
@@ -78,6 +79,29 @@ class Plot:
         elif not isinstance(x, np.ndarray): x = np.array(x)
 
         return self.plot(x, y, label=label, color=color, alpha=alpha, linewidth=linewidth, linestyle=linestyle, xlim=xlim, ylim=ylim, **kwargs)
+
+    def funcplot1d(
+        self,
+        func,
+        start,
+        stop,
+        num = None,
+        step = None,
+        vectorize:Optional[Literal['list', 'numpy', 'torch']] = None,
+        ylim=None,
+        label=None,
+        color=None,
+        alpha=None,
+        linewidth=None,
+        linestyle=None,
+        **kwargs,
+    ):
+        if step is None: step = (stop - start) / num
+        if vectorize == 'list': values = func(np.arange(start, stop, step).tolist())
+        elif vectorize == 'numpy': values = func(np.arange(start, stop, step))
+        elif vectorize == 'torch': values = func(torch.arange(start, stop, step))
+        else: values = [func(v) for v in torch.arange(start, stop, step)]
+        return self.linechart(np.arange(start, stop, step), values, label=label, color=color, alpha=alpha, linewidth=linewidth, linestyle=linestyle, ylim=ylim)
 
     def scatter(self,
                 x,
@@ -163,7 +187,7 @@ class Plot:
     def imshow_batch(self,
         x,
         label=None,
-        maxelems:Optional[int] = 16,
+        maxelems:Optional[int] = 256,
         ncol:Optional[int|float] = None,
         nrow:Optional[int|float] = 0.5,
         cmap = 'gray',
@@ -352,6 +376,44 @@ class Plot:
         d = _prepare_scatter10d_data(data)
         x, y, c, s, linewidths, edgecolors = d["x"], d["y"], d["c"], d["s"], d["linewidths"], d["edgecolors"]
         return self.path(x, y, s=s, c=c, linewidths=linewidths, edgecolors=edgecolors, label=label, linecolor=linecolor, marker=marker, cmap=cmap, line_alpha=line_alpha, marker_alpha=marker_alpha, linewidth=linewidth)
+
+    def vline(self, x, ymin = None, ymax = None, linewidth = None, linestyle = None, color=None, **kwargs) -> "Plot":
+        def vline(ax:Axes) -> Axes:
+            if ymin is not None and ymax is not None:
+                ax.axvline(x, ymin=ymin, ymax=ymax, linewidth=linewidth, linestyle=linestyle, color=color, **kwargs)
+            else:
+                ax.axline((x, 0), (x, 1), linewidth=linewidth, linestyle=linestyle, color=color, **kwargs)
+            return ax
+        self.tfms.append(vline)
+        return self
+
+    def hline(self, y, xmin = None, xmax = None, linewidth = None, linestyle = None, color=None, **kwargs) -> "Plot":
+        def hline(ax:Axes) -> Axes:
+            if xmin is not None and xmax is not None:
+                ax.axhline(y, xmin=xmin, xmax=xmax, linewidth=linewidth, linestyle=linestyle, color=color, **kwargs)
+            else:
+                ax.axline((0, y), (1, y), linewidth=linewidth, linestyle=linestyle, color=color, **kwargs)
+            return ax
+        self.tfms.append(hline)
+        return self
+
+    def line(self, xy1: tuple[float, float],xy2: tuple[float, float] | None, slope = None, **kwargs):
+        def line(ax:Axes) -> Axes:
+            ax.axline(xy1, xy2, slope=slope, **kwargs)
+            return ax
+        self.tfms.append(line)
+        return self
+
+    def origin_lines(self, linewidth = 0.5, color='black', coords = (0,0), **kwargs) -> "Plot":
+        self.vline(coords[0], linewidth=linewidth, color=color, **kwargs)
+        return self.hline(coords[1], linewidth=linewidth, color=color, **kwargs)
+
+    def point(self, x, y, s=None, c=None, alpha=None, marker = '.', **kwargs):
+        def point(ax:Axes) -> Axes:
+            ax.scatter(x, y, s=s, c=c, alpha=alpha, marker=marker, **kwargs)
+            return ax
+        self.tfms.append(point)
+        return self
 
     def legend(self, size=6, edgecolor=None, linewidth=3., frame_alpha = 0.3, **kwargs) -> "Plot":
         def legend(ax:Axes) -> Axes:
@@ -825,7 +887,7 @@ def qimshow(x,
 
 def qimshow_batch(x,
         title = None,
-        maxelems = 16,
+        maxelems = 256,
         ncol = None,
         nrow = None,
         cmap = 'gray',
@@ -854,7 +916,7 @@ def qimshow_batch(x,
 
 def qimshow_grid(images,
                  labels = None,
-                 maxelems = 64,
+                 maxelems = 256,
                  ncol = None,
                  nrow = None,
                  cmap = 'gray',
@@ -873,4 +935,37 @@ def qimshow_grid(images,
         fig.add().imshow(img, cmap=cmap, vmin=vmin, vmax=vmax, allow_alpha=allow_alpha, **kwargs).style_img(title=labels[i])
     if show: fig.show(nrow=nrow, ncol=ncol, title=title, figsize=figsize, layout=layout)
     else: fig.create(nrow=nrow, ncol=ncol, title=title, figsize=figsize, layout=layout)
+    return fig
+
+
+FIG_KWARGS = {"title", "figsize", "layout"}
+
+def _get_plot_kwargs(locals_copy):
+    return {k:v for k,v in locals_copy.items() if k not in FIG_KWARGS and k != 'show'}
+def _get_fig_kwargs(locals_copy):
+    return {k:v for k,v in locals_copy.items() if k in FIG_KWARGS and k != 'show'}
+
+def qfuncplot1d(
+        func,
+        start,
+        stop,
+        num = None,
+        step = None,
+        vectorize:Optional[Literal['list', 'numpy', 'torch']] = None,
+        ylim=None,
+        label=None,
+        color=None,
+        alpha=None,
+        linewidth=None,
+        linestyle=None,
+        title=None,
+        figsize=None,
+        show=False,
+        layout='compressed',
+        ):
+    fig = Figure()
+    kwargs = locals().copy()
+    fig.add().funcplot1d(**_get_plot_kwargs(kwargs)).style_chart()
+    if show: fig.show(**_get_fig_kwargs(kwargs))
+    else: fig.create(**_get_fig_kwargs(kwargs))
     return fig

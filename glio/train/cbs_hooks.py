@@ -12,7 +12,7 @@ from PIL import Image
 from .Learner import Learner
 from ..design.EventModel import BasicCallback, MethodCallback
 from . hooks_base import LearnerForwardHook, LearnerBackwardHook, LearnerRegisterTensorBackwardHook, LearnerRegisterForwardHook
-from ..torch_tools import is_container, is_inplace, ensure_device, is_inplace_recursive
+from ..torch_tools import is_container, is_inplace, ensure_device, is_inplace_recursive, copy_state_dict
 from ..transforms.intensity import norm
 from ..python_tools import to_valid_fname
 from ..loaders.image import imwrite
@@ -24,6 +24,7 @@ __all__ = [
     "LogLayerGradHistorgramCB",
     'SaveForwardChannelImagesCB',
     'SaveBackwardChannelImagesCB',
+    'SaveUpdateChannelImagesCB',
 ]
 
 
@@ -221,7 +222,7 @@ class SaveForwardChannelImagesCB(LearnerRegisterForwardHook, MethodCallback):
         if self.cur_module == 1:
             self.cur_prefix = f'{self.cur_iter} - e{learner.total_epoch} b{learner.total_batch} c'
             # save inputs
-            self.save_3d_slices_fn(inputs[0], os.path.join(self.workdir, '0 - inputs'), fname=f'{self.cur_prefix}', max_ch=self.max_ch)
+            self.save_3d_slices_fn(inputs[0], os.path.join(self.workdir, f'0 - inputs {tuple(inputs[0].shape)}'), fname=f'{self.cur_prefix}', max_ch=self.max_ch)
 
         self.save_3d_slices_fn(outputs,
                         dir = os.path.join(self.workdir, f'{to_valid_fname(name)} {tuple(outputs.shape)}'),
@@ -287,3 +288,73 @@ class SaveBackwardChannelImagesCB(LearnerRegisterTensorBackwardHook, MethodCallb
                                 )
                 self.saved_modules.add(name)
                 self.cur_module += 1
+
+
+class SaveUpdateChannelImagesCB(LearnerRegisterForwardHook, MethodCallback):
+    def __init__(self, inputs:torch.Tensor, targets:torch.Tensor, dir = 'runs', mkdir = True, max_ch = 42, filt = is_not_container, mode='grid', unsqueeze = False,):
+        MethodCallback.__init__(self)
+        LearnerRegisterForwardHook.__init__(self, filt=filt)
+
+        self.inputs = inputs.unsqueeze(0) if unsqueeze else inputs[0]
+        self.targets = targets.unsqueeze(0) if unsqueeze else targets[0]
+
+        self.dir = dir
+        self.mkdir = mkdir
+        self.max_ch = max_ch
+
+        self.workdir = ''
+        self.cur_prefix = ''
+        self.cur_iter = 1
+        self.cur_module = 1
+
+        self.save_3d_slices_fn = _SLICE_SAVING_MODES[mode]
+
+        self.status = 1
+        self.channels_before = {}
+
+    def _init(self):
+        self.cur_module = 1
+        self.channels_before = {}
+        self.status = 1
+
+    def after_test_epoch(self, learner:Learner):
+        with learner.freeze():
+            self._init()
+            status = learner.status
+            self._register(learner)
+            learner.one_batch(self.inputs, self.targets, train=True)
+            self.cur_module = 1
+            self.status = 2
+            learner.inference(self.inputs, to_cpu = False)
+            self._unregister()
+            learner.status = status
+            self.cur_iter += 1
+
+    def __call__(self, learner: Learner, name: str, module: torch.nn.Module, inputs: tuple[torch.Tensor], outputs: torch.Tensor):
+        if self.status == 1:
+
+            if self.cur_iter == 1:
+                self.workdir = os.path.join(learner.get_workdir(self.dir, self.mkdir), 'update channels')
+                if not os.path.exists(self.workdir): os.mkdir(self.workdir)
+
+            if self.cur_module == 1:
+                self.channels_before[f"0 - inputs {tuple(inputs[0].shape)}"] = inputs[0]
+                self.cur_module += 1
+
+            self.channels_before[f'{name} {tuple(outputs.shape)}'] = outputs
+
+        elif self.status == 2:
+            if self.cur_module == 1:
+                self.cur_prefix = f'{self.cur_iter} - e{learner.total_epoch} b{learner.total_batch} c'
+                # save inputs
+                self.save_3d_slices_fn((inputs[0] - self.channels_before[f"0 - inputs {tuple(inputs[0].shape)}"]).abs(),
+                                       dir = os.path.join(self.workdir, f'0 - inputs {tuple(inputs[0].shape)}'), 
+                                       fname=f'{self.cur_prefix}', max_ch=self.max_ch)
+
+            modname = f'{name} {tuple(outputs.shape)}'
+            self.save_3d_slices_fn((outputs - self.channels_before[modname]).abs(),
+                            dir = os.path.join(self.workdir, to_valid_fname(modname)),
+                            fname=f'{self.cur_prefix}',
+                            max_ch=self.max_ch,
+                            )
+            self.cur_module += 1

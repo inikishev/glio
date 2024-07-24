@@ -19,7 +19,8 @@ __all__ = [
 class OneBatchClosureCB(EventCallback):
     event = "one_batch"
     def __call__(self, learner: "Learner", inputs: torch.Tensor, targets: torch.Tensor, train=True):
-        learner.set_mode(train)
+        if train: learner.train()
+        else: learner.eval()
         if learner.accelerator is None: inputs, targets = inputs.to(learner.device), targets.to(learner.device)
         with nullcontext() if train else torch.no_grad():
             if train:
@@ -39,7 +40,8 @@ class OneBatchClosureCB(EventCallback):
 class OneBatchClosureWithNoBackwardCB(EventCallback):
     event = "one_batch"
     def __call__(self, learner: "Learner", inputs: torch.Tensor, targets: torch.Tensor, train=True):
-        learner.set_mode(train)
+        if train: learner.train()
+        else: learner.eval()
         if learner.accelerator is None: inputs, targets = inputs.to(learner.device), targets.to(learner.device)
         with nullcontext() if train else torch.no_grad():
             if train:
@@ -93,15 +95,14 @@ class SimpleMomentumCB(MethodCallback):
         for p in learner.model.parameters():
             if p.grad is not None: p.grad *= self.momentum
 
-class CallTrainAndEvalOnOptimizerCB(EventCallback):
-    event = "set_mode"
-    def __call__(self, learner: "Learner", train=True):
-        if hasattr(learner.model, "train"):
-            if train: learner.model.train()
-            else: learner.model.eval()
-        if hasattr(learner.optimizer, "train"):
-            if train: learner.optimizer.train() # type:ignore
-            else: learner.optimizer.eval() # type:ignore
+class CallTrainAndEvalOnOptimizerCB(MethodCallback):
+    def train(self, learner: "Learner"):
+        if hasattr(learner.model, "train") and callable(learner.model.train): learner.model.train()
+        if hasattr(learner.optimizer, "train") and callable(learner.optimizer.train): learner.optimizer.train() # type:ignore
+
+    def eval(self, learner: "Learner"):
+        if hasattr(learner.model, "eval") and callable(learner.model.eval): learner.model.eval()
+        if hasattr(learner.optimizer, "eval") and callable(learner.optimizer.eval): learner.optimizer.eval() # type:ignore
 
 
 class AddLossReturnedByModelToLossInGetLossCB(MethodCallback):

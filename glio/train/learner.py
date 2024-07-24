@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, Any, TYPE_CHECKING, final, Literal
 import os, pathlib, shutil
 from datetime import datetime
-
+from contextlib import contextmanager
 import torch, torch.utils.data
 import numpy as np
 
@@ -205,7 +205,8 @@ class Learner(EventModel):
         test_on_interrupt = True,
         after_fit_on_interrupt = True,
         extra:Optional[Callback | Iterable[Callback]] = None,
-        without:Optional[str | Iterable[str]] = None
+        without:Optional[str | Iterable[str]] = None,
+        start_epoch = 0,
     ):
         """Fit
 
@@ -236,7 +237,7 @@ class Learner(EventModel):
         self.atfer_fit_on_iterrupt = after_fit_on_interrupt
 
         # epochs
-        self.epochs_iterator = range(self.num_epochs)
+        self.epochs_iterator = range(start_epoch, self.num_epochs)
         self.cur_epoch = 0
 
         # accelerate the model if needed
@@ -301,6 +302,14 @@ class Learner(EventModel):
 
         return state_dict
 
+    @contextmanager
+    def freeze(self,
+            attrs_state_dict = ("model", "optimizer", "scheduler", "logger"),
+            attrs_values = ("cur_batch", "cur_epoch", "total_batch", "total_epoch", "status", "training", "_workdir"),
+            ):
+        state_dict = copy_state_dict(self.state_dict(copy=True))
+        yield
+        self.load_state_dict(state_dict)
 
     def save_state_dict(self, path:str):
         torch.save(self.state_dict(), path)

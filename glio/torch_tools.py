@@ -811,7 +811,7 @@ class MRISlicer:
 
         return self.get_slice(dim, coord)
 
-    def get_slice(self, dim: Literal[0,1,2], coord: int):
+    def get_slice(self, dim: Literal[0,1,2], coord: int, randflip = True):
         """Get a slice from given `dim` and `coord`"""
         # get a tensor
         if dim == 0:
@@ -836,8 +836,10 @@ class MRISlicer:
         if self.around == 0: return tensor[:, coord], seg[coord]
 
         # or get slices around (and flip slice spatial dimension with 0.5 p)
-        if random.random() > 0.5: return tensor[:, coord - self.around : coord + self.around + 1].flatten(0,1), seg[coord]
-        return tensor[:, coord - self.around : coord + self.around + 1].flip((1,)).flatten(0,1), seg[coord]
+        if randflip:
+            if random.random() > 0.5: return tensor[:, coord - self.around : coord + self.around + 1].flatten(0,1), seg[coord]
+            return tensor[:, coord - self.around : coord + self.around + 1].flip((1,)).flatten(0,1), seg[coord]
+        return tensor[:, coord - self.around : coord + self.around + 1].flatten(0,1), seg[coord]
 
     def get_random_slice(self):
         """Get a random slice, ignores `any_prob`."""
@@ -873,26 +875,34 @@ class MRISlicer:
         """Get all slices that have segmentation."""
         return [i() for i in self.get_all_seg_slice_callables()]
 
+
+    def yield_all_dim_slice_callables(self, dim:Literal[0,1,2], randflip=False) -> Generator[Callable[[], tuple[torch.Tensor, torch.Tensor]]]:
+        if dim == 0: length = self.shape[1]
+        elif dim == 1: length = self.shape[2]
+        else: length = self.shape[3]
+
+        for coord in range(self.around, length - self.around):
+            yield functools.partial(self.get_slice, dim, coord, randflip)
+
+    def get_all_dim_slice_callables(self, dim:Literal[0,1,2], randflip=False) -> list[Callable[[], tuple[torch.Tensor, torch.Tensor]]]:
+        """Get all slices as partials."""
+        return list(self.yield_all_dim_slice_callables(dim, randflip))
+
+    def get_all_dim_slices(self, dim:Literal[0,1,2], randflip=False) -> list[tuple[torch.Tensor, torch.Tensor]]:
+        """Get all slices."""
+        return [i() for i in self.get_all_dim_slice_callables(dim, randflip)]
+
     def yield_all_slice_callables(self) -> Generator[Callable[[], tuple[torch.Tensor, torch.Tensor]]]:
         """Yield all slices, including empty segmentation ones, as partials."""
         # pick a dimension
-        for dim in (0, 1, 2):
-
-            # get length
-            if dim == 0: length = self.shape[1]
-            elif dim == 1: length = self.shape[2]
-            else: length = self.shape[3]
-
-            for coord in range(self.around, length - self.around):
-
-                yield functools.partial(self.get_slice, dim, coord)
+        for dim in (0, 1, 2): yield from self.yield_all_dim_slice_callables(dim)
 
     def get_all_slice_callables(self) -> list[Callable[[], tuple[torch.Tensor, torch.Tensor]]]:
-        """Get all slices that have segmentation as partials."""
+        """Get all slices as partials."""
         return list(self.yield_all_slice_callables())
 
     def get_all_slices(self) -> list[tuple[torch.Tensor, torch.Tensor]]:
-        """Get all slices that have segmentation."""
+        """Get all slices."""
         return [i() for i in self.get_all_slice_callables()]
 
 
@@ -929,3 +939,9 @@ class MRISlicer:
         any_to_seg_ratio = self.any_prob / seg_prob
         return [self.get_random_slice for i in range(int(self.get_non_empty_count() * any_to_seg_ratio))]
 
+def performance_tweaks(cudnn_bench, onednn_fusion=True, detect_anomaly=False, checknan = False, autograd_profiler = False, emit_nvtx=False, gradcheck=False, gradgradcheck=False):
+    if cudnn_bench is not None: torch.backends.cudnn.benchmark = cudnn_bench
+    if onednn_fusion is not None: torch.jit.enable_onednn_fusion(onednn_fusion)
+    if detect_anomaly is not None: torch.autograd.set_detect_anomaly(detect_anomaly, checknan) # type:ignore
+    if autograd_profiler is not None: torch.autograd.profiler.profile(autograd_profiler) # type:ignore
+    if emit_nvtx is not None: torch.autograd.profiler.emit_nvtx(emit_nvtx) # type:ignore

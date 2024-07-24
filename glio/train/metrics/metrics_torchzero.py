@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from typing import Optional
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -69,12 +70,12 @@ class TorchzeroIoUCB(PerClassMetricCallback):
         return iou(y = learner.targets, yhat = batched_raw_preds_to_one_hot(learner.preds), reduction = 'none').detach().cpu()
 
 class TorchzeroAccuracyCB(PerClassMetricCallback):
-    def __init__(self, class_labels:Sequence, include_bg = False, train=True, test=True, step=1, name='accuracy'):
+    def __init__(self, class_labels:Optional[Sequence] = None, ignore_bg = False, train=True, test=True, step=1, name='accuracy'):
         """Accuracy metric. Defined as number of correct predictions divided by total number of predictions.
 
         preds must be raw BC(*) format, targets - one-hot BC(*).
         """
-        super().__init__(class_labels = class_labels, agg_ignore_bg = not include_bg, train = train, test = test)
+        super().__init__(class_labels = class_labels, agg_ignore_bg = ignore_bg, train = train, test = test)
         self.class_labels = class_labels
 
         self.batch_cond = None if step<=1 else lambda _, i: i%step==0

@@ -1,5 +1,7 @@
 "metrics"
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence, Iterable
+import itertools
+from typing import Literal
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 import numpy as np
@@ -68,7 +70,7 @@ class PerClassMetricCallback(Callback, ABC):
 
     def __init__( # pylint:disable=W0102
         self,
-        class_labels: Sequence[str],
+        class_labels: Optional[Iterable[Any]],
         train=True,
         test=True,
         test_aggregate_funcs: dict[str, Callable] = {"": np.nanmean,},
@@ -76,7 +78,7 @@ class PerClassMetricCallback(Callback, ABC):
         train_step = 1,
         test_step = 1,
         agg_ignore_bg = False,
-        log_per_class = True,
+        log_per_class:bool | Literal['auto'] = 'auto',
         batch_cond: Optional[Callable] = None,
         test_epoch_cond: Optional[Callable] = None,
     ):
@@ -95,12 +97,14 @@ class PerClassMetricCallback(Callback, ABC):
             batch_cond (Optional[Callable], optional): after_batch condition. Defaults to None.
             test_epoch_cond (Optional[Callable], optional): after_test_epoch condition. Defaults to None.
         """
-        self.class_labels = class_labels
+        if class_labels is None: self.class_labels = iter(lambda: None, 1)
+        else: self.class_labels = class_labels
         self.agg_ignore_bg = agg_ignore_bg
         self.train, self.test = train, test
         self.test_aggregate_funcs = test_aggregate_funcs.copy()
         self.class_aggregate_func = class_aggregate_func.copy()
         self.batch_cond, self.test_epoch_cond = batch_cond, test_epoch_cond
+        if log_per_class == 'auto': log_per_class = class_labels is not None
         self.log_per_class = log_per_class
         self.train_step, self.test_step = train_step, test_step
         self.cur = 0

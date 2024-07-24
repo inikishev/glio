@@ -10,6 +10,8 @@ class _DummyOptimizer:
     def state_dict(self): return self.param_groups[0]
     def load_state_dict(self, state_dict:dict[str, Any]): self.lr = state_dict['lr']
 
+_dummy_optimizer = _DummyOptimizer()
+
 __all__ = [
     "LRScheduler",
     "BatchLambdaLR",
@@ -84,3 +86,20 @@ class SawLR(LRScheduler):
 
     def state_dict(self):
         return dict(lrmin = self.lrmin, lrmax = self.lrmax, length = self.length, batch=self.batch)
+    
+class LinearLR(LRScheduler):
+    """Get LR as a function of current LR."""
+    def __init__(self, optimizer, start, end, length):
+
+        self.optimizer = optimizer
+        self.start = start
+        self.end = end
+        self.length = length
+        self.batch = 0
+
+    def step(self):
+        set_lr_(self.optimizer, lr = self.start + (self.end - self.start) * (self.batch / self.length))
+        self.batch += 1
+
+    def state_dict(self):
+        return dict(start = self.start, end = self.end, length = self.length, batch=self.batch)

@@ -1,5 +1,5 @@
 """asdnjkhaoldloasdnasiujadklodigsdauhlasdasdaskdbasdbaskhdaskjhdasdhjkbaskdbhaskdhsakdhlasdlasdas."""
-from typing import Callable
+from typing import Callable, Any
 import torch
 from ..design.EventModel import BasicCallback
 from .Learner import Learner
@@ -11,7 +11,7 @@ __all__ = [
 ]
 class SetOptimizerCB(BasicCallback):
     """Sets optimizer"""
-    def __init__(self, optimizer: torch.optim.Optimizer):
+    def __init__(self, optimizer: torch.optim.Optimizer | Any):
         super().__init__()
         self.optimizer = optimizer
 
@@ -37,7 +37,7 @@ class SetLossFnCB(BasicCallback):
 
 class SetSchedulerCB(BasicCallback):
     """Sets scheduler"""
-    def __init__(self, scheduler: torch.optim.lr_scheduler.LRScheduler):
+    def __init__(self, scheduler: torch.optim.lr_scheduler.LRScheduler | Any):
         super().__init__()
         self.scheduler = scheduler
 

@@ -11,6 +11,7 @@ __all__ = [
     "SavePredsToLearnerCB",
     "LogTimeCB",
     "LogLRCB",
+    "LogOptimizerParamCB",
 ]
 
 class SavePredsToThisCB(ConditionCallback):
@@ -75,3 +76,11 @@ class LogLRCB(ConditionCallback):
     default_events = [("after_train_batch", None),]
     def __call__(self, learner: Learner):
         learner.log("lr", get_lr(learner.optimizer)) # type:ignore
+
+class LogOptimizerParamCB(ConditionCallback):
+    default_events = [("after_train_batch", None),]
+    def __init__(self, param: str):
+        super().__init__()
+        self.param = param
+    def __call__(self, learner: Learner):
+        learner.log("lr", learner.optimizer.param_groups[0][self.param]) # type:ignore

@@ -13,7 +13,7 @@ __all__ = [
     "LogGradUpdateAngleCB",
     "LogLastGradsAngleCB",
     "LogLastUpdatesAngleCB",
-    "LogParamsPathCB",
+    "LogParamPathCB",
     "LogGradPathCB",
     "LogUpdatePathCB",
     
@@ -174,7 +174,7 @@ class LogLastUpdatesAngleCB(MethodCallback):
             if self.angle: learner.log('last updates angle', angle(self.prev_update, new_update))
             if self.cosine: learner.log('last updates cosine', torch.nn.functional.cosine_similarity(self.prev_update, new_update, dim=0)) # pylint:disable=E1102
 
-class LogParamsPathCB(MethodCallback):
+class LogParamPathCB(MethodCallback):
     #order = 10
     def __init__(self, step, ngroups = 10, mean=True, l1=False, l2=False, median=False, maxparams=100_000, mode='rand', det = True):
         """Mode: `rand` / `step` / `chunk` / `chunkstep`."""

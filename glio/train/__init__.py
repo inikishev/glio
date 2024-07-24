@@ -17,6 +17,7 @@ from .cbs_simpleprogress import *
 from .cbs_default_overrides import *
 from .cbs_performance import *
 from .cbs_optim import *
+from .cbs_lrscheduler import *
 
 from ..design.EventModel import Callback, ConditionCallback, BasicCallback, EventCallback, MethodCallback
 

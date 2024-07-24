@@ -74,18 +74,19 @@ class DefaultTrainCB(EventCallback):
     event = "train"
     def __call__(self, learner: "Learner"):
         if hasattr(learner.model, "train") and callable(learner.model.train): learner.model.train()
-        if hasattr(learner.optimizer, "train") and callable(learner.optimizer.train): learner.optimizer.train() # type:ignore
+        # if hasattr(learner.optimizer, "train") and callable(learner.optimizer.train): learner.optimizer.train() # type:ignore
 
 class DefaultEvalCB(EventCallback):
     event = "eval"
     def __call__(self, learner: "Learner"):
         if hasattr(learner.model, "eval") and callable(learner.model.eval): learner.model.eval()
-        if hasattr(learner.optimizer, "eval") and callable(learner.optimizer.eval): learner.optimizer.eval() # type:ignore
+        # if hasattr(learner.optimizer, "eval") and callable(learner.optimizer.eval): learner.optimizer.eval() # type:ignore
 
 class DefaultOneBatchCB(EventCallback):
     event = "one_batch"
     def __call__(self, learner: "Learner", inputs: torch.Tensor, targets: torch.Tensor, train=True, status=None):
-        learner.train()
+        if train: learner.train()
+        else: learner.eval()
         if learner.accelerator is None: inputs, targets = inputs.to(learner.device), targets.to(learner.device)
         with nullcontext() if train else torch.no_grad():
 
