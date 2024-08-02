@@ -37,7 +37,7 @@ _CBUPDATEMETRICS = lambda: [
     LogUpdateDistCB(16),
     LogLastUpdatesAngleCB(16),
     LogParamDistCB(16),
-    LogParamsPathCB(1),
+    LogParamPathCB(1),
     LogUpdatePathCB(1),
     ]
 

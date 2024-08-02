@@ -2,7 +2,7 @@
 from typing import Literal, Optional
 from collections.abc import Sequence
 import torch
-from ..design.EventModel import MethodCallback
+from ..design.event_model import MethodCallback
 from .Learner import Learner
 
 __all__ = [

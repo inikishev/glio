@@ -7,7 +7,7 @@ from typing import Any, Optional
 import numpy as np
 import torch
 from ..Learner import Learner
-from ...design.EventModel import Callback, EventModel
+from ...design.event_model import Callback, EventModel
 from ...python_tools import get__name__
 
 __all__ = [

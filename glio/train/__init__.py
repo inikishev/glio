@@ -19,7 +19,7 @@ from .cbs_performance import *
 from .cbs_optim import *
 from .cbs_lrscheduler import *
 
-from ..design.EventModel import Callback, ConditionCallback, BasicCallback, EventCallback, MethodCallback
+from ..design.event_model import Callback, ConditionCallback, BasicCallback, EventCallback, MethodCallback
 
 try:
     import accelerate as __

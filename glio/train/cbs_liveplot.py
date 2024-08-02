@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from typing import Any,Optional
-from ..design.EventModel import MethodCallback
+from ..design.event_model import MethodCallback
 from ..python_tools import type_str
 from .Learner import Learner
 

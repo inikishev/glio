@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import monai.metrics
 
 from ..Learner import Learner
-from ...design.EventModel import MethodCallback
+from ...design.event_model import MethodCallback
 from ...torch_tools import one_hot_mask
 from .metric_callback import MetricCallback
 

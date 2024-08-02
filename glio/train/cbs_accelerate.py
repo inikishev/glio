@@ -1,6 +1,6 @@
 "1"
 from accelerate import Accelerator
-from ..design.EventModel import EventCallback
+from ..design.event_model import EventCallback
 from ..python_tools import type_str
 from .Learner import Learner
 

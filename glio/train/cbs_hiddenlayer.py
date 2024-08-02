@@ -1,5 +1,5 @@
 # import hiddenlayer as hl, numpy as np
-# from ..design.EventModel import CBCond
+# from ..design.event_model import CBCond
 # from .Learner import Learner
 # from ..logger import Logger
 

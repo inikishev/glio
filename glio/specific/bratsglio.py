@@ -43,6 +43,7 @@ __all__ = [
     "predict_full",
     "predict_dataset",
     "get_mri_from_folder",
+    "get_pretrained_model2",
 
 ]
 
@@ -237,8 +238,9 @@ def run_train(
         scheduler = sched,
     )
 
-
-    learner.fit(n_epochs, dltrain, dltest, test_first=test_first, test_on_interrupt=False)
+    try: learner.fit(n_epochs, dltrain, dltest, test_first=test_first, test_on_interrupt=False)
+    except Exception as e: print(e)
+    finally: return learner
 
 
 def continue_train(
@@ -293,13 +295,22 @@ def continue_train(
     )
 
 
-    learner.fit(n_epochs, dltrain, dltest, test_first=test_first, test_on_interrupt=False, start_epoch = learner.total_epoch)
+    try: learner.fit(n_epochs, dltrain, dltest, test_first=test_first, test_on_interrupt=False, start_epoch=learner.total_epoch)
+    except Exception as e: print(e)
+    finally: return learner
 
 
 def get_pretrained_model():
     from torchzero.nn.nets.unet import SegResNet
     model = SegResNet(44, 5, 2,).to(torch.device('cuda'))
     weights = r"F:\Stuff\Programming\experiments\brats2024-gli\training\0-1000 1000-1350\runs\came around5 50epochs 3 - 2024.7.18 21-8\checkpoints\e44 b334742 test-loss_0.18626\model.pt"
+    model.load_state_dict(torch.load(weights))
+    return model
+
+def get_pretrained_model2():
+    from torchzero.nn.nets.unet import SegResNet
+    model = SegResNet(20, 5, 2,).to(torch.device('cuda'))
+    weights = r"F:\Stuff\Programming\experiments\brats2024-gli\training\0-1000 1000-1350\runs\came around2 30epochs fast warmup 1e-2 0.5anyp gradclipnorm4 1 - 2024.7.25 11-26\checkpoints\e48 b643027 test-loss_0.09860\model.pt"
     model.load_state_dict(torch.load(weights))
     return model
 
@@ -541,8 +552,7 @@ def get_mri_from_folder(path, cropbg=True):
                      sitk.GetArrayFromImage(t2f_norm),
                      sitk.GetArrayFromImage(t2w_norm)])).to(torch.float32)
 
-def predict_cropped(path, outfile, printp=False):
-    model = get_pretrained_model()
+def predict_cropped(model, path, outfile, around, printp=False):
     t1c = find_file_containing(path, 't1c.')
     t1n = find_file_containing(path, 't1n.')
     t2f = find_file_containing(path, 't2f.')
@@ -553,7 +563,7 @@ def predict_cropped(path, outfile, printp=False):
                      sitk.GetArrayFromImage(t1c_norm),
                      sitk.GetArrayFromImage(t2f_norm),
                      sitk.GetArrayFromImage(t2w_norm)])).to(torch.float32)
-    preds = inference_softmax_argmax_tta(model, stacked_tensor, around = 5, pbar=False, printp = printp, overlap=0.75)
+    preds = inference_softmax_argmax_tta(model, stacked_tensor, around = around, pbar=False, printp = printp, overlap=0.75)
     sitk_preds = sitk.GetImageFromArray(preds.to(torch.uint8).numpy())
     sitk_preds.CopyInformation(t1c_norm)
     resampled_sitk_preds = resample_to(sitk_preds, t1c)
@@ -562,8 +572,7 @@ def predict_cropped(path, outfile, printp=False):
     sitk.WriteImage(resampled_sitk_preds, outfile)
     return resampled_sitk_preds
 
-def predict_full(path, outfile, printp=False):
-    model = get_pretrained_model()
+def predict_full(model, path, outfile, around, printp=False):
     t1c = find_file_containing(path, 't1c.')
     t1n = find_file_containing(path, 't1n.')
     t2f = find_file_containing(path, 't2f.')
@@ -574,7 +583,7 @@ def predict_full(path, outfile, printp=False):
                      sitk.GetArrayFromImage(t1c_norm),
                      sitk.GetArrayFromImage(t2f_norm),
                      sitk.GetArrayFromImage(t2w_norm)])).to(torch.float32)
-    preds = inference_softmax_argmax_tta(model, stacked_tensor, around = 5, pbar=False, printp = printp, overlap=0.75)
+    preds = inference_softmax_argmax_tta(model, stacked_tensor, around = around, pbar=False, printp = printp, overlap=0.75)
     sitk_preds = sitk.GetImageFromArray(preds.to(torch.uint8).numpy())
     sitk_preds.CopyInformation(sitk.ReadImage(t1c))
     sitk_preds.SetOrigin((-90., 126., -72.))
@@ -582,8 +591,8 @@ def predict_full(path, outfile, printp=False):
     return sitk_preds
 
 
-def predict_dataset(path, outdir):
+def predict_dataset(model, path, outdir, around, ):
     from glio.progress_bar import PBar # type:ignore pylint:disable=W0621
     for dir in PBar(os.listdir(path), step=1):
         full_dir = os.path.join(path, dir)
-        predict_cropped(full_dir, os.path.join(outdir, 'seg-' + dir + '.nii.gz'), printp=False)
+        predict_cropped(model, full_dir, os.path.join(outdir, 'seg-' + dir + '.nii.gz'), around = around, printp=False)

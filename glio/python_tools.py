@@ -3,6 +3,7 @@ from collections.abc import Sequence,Callable, Iterable, Mapping
 from typing import Any, Protocol, Optional
 from time import perf_counter
 from contextlib import contextmanager
+import inspect
 import random, os, pathlib
 import functools, operator
 import copy
@@ -535,6 +536,14 @@ class Compose:
     def __delitem__(self, i): del self.transforms[i]
 
 def auto_compose(func: Optional[Callable | Sequence[Callable]]):
+    """Composes `func` if it is a sequence, returns `identity` if it is None.
+
+    Args:
+        func (Optional[Callable  |  Sequence[Callable]]): _description_
+
+    Returns:
+        _type_: _description_
+    """
     if isinstance(func, Sequence): return Compose(*func)
     if func is None: return identity
     return func
@@ -790,12 +799,12 @@ def sequence_to_md_table(s:Sequence[Sequence], keys:Optional[Sequence] = None, f
 
     return md
 
-__valid_fname_chars = frozenset("-_.()")
+__valid_fname_chars = frozenset(" -_.()")
 def is_valid_fname(string:str):
     if len(string) == 0: return False
     return all([c in __valid_fname_chars or c.isalnum() for c in string])
 
-def to_valid_fname(string:str, fallback = '-', empty_fallback = 'empty', maxlen = 127):
+def to_valid_fname(string:str, fallback = '-', empty_fallback = 'empty', maxlen = 127, valid_chars = __valid_fname_chars):
     """Makes sure filename doesn't have forbidden characters and isn't empty or too long,
     this does not ensure a valid filename as there are a lot of other rules,
     but does a fine job most of the time.
@@ -810,7 +819,7 @@ def to_valid_fname(string:str, fallback = '-', empty_fallback = 'empty', maxlen 
         _type_: _description_
     """
     if len(string) == 0: return empty_fallback
-    return ''.join([(c if c in __valid_fname_chars or c.isalnum() else fallback) for c in string[:maxlen]])
+    return ''.join([(c if c in valid_chars or c.isalnum() else fallback) for c in string[:maxlen]])
 
 def to_valid_varname(string:str, fallback = '_', empty_fallback = 'empty', firstdigit_fallback = 'd', maxlen = None):
     """Turn arbitrary string to a valid python variable name.
@@ -831,3 +840,10 @@ def to_valid_varname(string:str, fallback = '_', empty_fallback = 'empty', first
     return name
 
 
+def print_callable_defaults(c, end = '\n'):
+    signature = inspect.signature(c)
+    for k, v in signature.parameters.items():
+        if v.default is not inspect.Parameter.empty:
+            print(f"{k} = {v.default}", end=end)
+        else:
+            print(f"{k} = ", end  = end)

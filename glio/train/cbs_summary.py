@@ -1,6 +1,6 @@
 """Docstring """
 import torch
-from ..design.EventModel import EventCallback
+from ..design.event_model import EventCallback
 from .Learner import Learner
 
 __all__ = [

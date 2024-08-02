@@ -11,9 +11,10 @@ __all__ = [
     'Logger',
 ]
 class Logger:
-    def __init__(self):
+    def __init__(self, note:Any = None):
         self.logs: dict[str, dict[int, Any]] = {}
         self.batch = 0
+        self.note = note
 
     def __getitem__(self, key):
         return self.logs[key]
@@ -302,15 +303,15 @@ class Logger:
                 logging.warning(msg = "Failed to save `%s`: %s" % (k, e)) # pylint:disable=C0209
         return state_dict
 
-    def save(self, path:str):
+    def save(self, filepath:str):
         """Saves logger into a compressed numpy array (npz) file.
 
         Args:
             path (str): _description_
         """
-        if not path.endswith(".npz"): logging.warning("%s doesn't end with .npz", path)
+        if not filepath.endswith(".npz"): logging.warning("%s doesn't end with .npz", filepath)
         arrays = self.state_dict()
-        np.savez_compressed(path, **arrays)
+        np.savez_compressed(filepath, **arrays)
 
     def load_state_dict(self, state_dict:dict):
         for n, keys in state_dict.items():
@@ -319,17 +320,17 @@ class Logger:
                 values = state_dict[f"VALS {name}"]
                 self.logs[name] = dict(zip(keys, values))
 
-    def load(self, path:str):
+    def load(self, filepath:str):
         """Loads logger from a compressed numpy array (npz) file.
 
         Args:
             path (str): _description_
         """
-        arrays = np.load(path)
+        arrays = np.load(filepath)
         self.load_state_dict(arrays)
 
     @classmethod
-    def from_file(cls, path:str):
+    def from_file(cls, filepath:str, note:Any = None):
         """Loads logger from a compressed numpy array (npz) file.
 
         Args:
@@ -338,8 +339,8 @@ class Logger:
         Returns:
             _type_: _description_
         """
-        logger:Logger = cls()
-        logger.load(path)
+        logger:Logger = cls(note = note)
+        logger.load(filepath)
         return logger
 
     @classmethod
@@ -363,7 +364,7 @@ class Logger:
             l[m] = {batch: metric for batch, metric in self[m].items() if start <= batch <= stop}
         return l
 
-    def info(self):
+    def info_str(self):
         text = ""
         for key in sorted(self.keys()):
             last = self.last(key)

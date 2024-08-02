@@ -1,7 +1,7 @@
 import time
 import math
 import torch
-from ..design.EventModel import MethodCallback
+from ..design.event_model import MethodCallback
 from .Learner import Learner
 from ..torch_tools import angle, seeded_rng, stepchunk
 from ..random import randperm

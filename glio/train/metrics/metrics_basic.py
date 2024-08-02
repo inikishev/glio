@@ -6,7 +6,7 @@ import numpy as np
 import torch, torch.nn.functional as F
 from .metric_callback import MetricCallback
 from ..Learner import Learner
-from ...design.EventModel import Callback, EventModel
+from ...design.event_model import Callback, EventModel
 from ...python_tools import type_str, get__name__
 
 
@@ -60,5 +60,5 @@ class MetricAccuracyCB(MetricCallback):
         self.metric = name
 
     def __call__(self, learner: Learner):
-        return float(learner.preds.amax(1).eq(learner.targets).detach().float().mean().cpu())
+        return float(learner.preds.argmax(1).eq(learner.targets.argmax(1)).detach().float().mean().cpu())
 

@@ -1,7 +1,7 @@
 """asdnjkhaoldloasdnasiujadklodigsdauhlasdasdaskdbasdbaskhdaskjhdasdhjkbaskdbhaskdhsakdhlasdlasdas."""
 from typing import Callable, Any
 import torch
-from ..design.EventModel import BasicCallback
+from ..design.event_model import BasicCallback
 from .Learner import Learner
 
 __all__ = [

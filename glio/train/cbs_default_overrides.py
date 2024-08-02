@@ -1,15 +1,15 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 from contextlib import nullcontext
 import torch, torch.utils.data
-from ..design.EventModel import EventCallback, MethodCallback
+from ..design.event_model import EventCallback, MethodCallback
 if TYPE_CHECKING:
     from .Learner import Learner
 
 __all__ = [
     'OneBatchClosureCB',
     "OneBatchClosureWithNoBackwardCB",
-    "GradientFreeCB",
-    "GradientFreeWithZeroGradCB",
+    "DisableTorchGradCB",
+    "DisableTorchGradAndBackwardCB",
     "PassLossToOptimizerStepCB",
     "SimpleMomentumCB",
     "CallTrainAndEvalOnOptimizerCB",
@@ -24,11 +24,12 @@ class OneBatchClosureCB(EventCallback):
         if learner.accelerator is None: inputs, targets = inputs.to(learner.device), targets.to(learner.device)
         with nullcontext() if train else torch.no_grad():
             if train:
-                def closure():
-                    learner.zero_grad() # type:ignore
+                def closure(backward=True):
                     learner.preds = learner.forward(inputs)
                     learner.loss = learner.get_loss(learner.preds, targets) # type:ignore
-                    learner.backward()
+                    if backward:
+                        learner.zero_grad() # type:ignore
+                        learner.backward()
                     return learner.loss
                 learner.optimizer_step(closure) # type:ignore
                 learner.scheduler_step()
@@ -58,7 +59,7 @@ class OneBatchClosureWithNoBackwardCB(EventCallback):
                 learner.loss = learner.get_loss(learner.preds, targets) # type:ignore
 
 
-class GradientFreeCB(MethodCallback):
+class DisableTorchGradCB(MethodCallback):
     order = 100
     def zero_grad(self, learner: "Learner"): pass
     def backward(self, learner: "Learner"): pass
@@ -71,7 +72,7 @@ class GradientFreeCB(MethodCallback):
     def before_batch(self, learner: "Learner"):
         torch.set_grad_enabled(False)
 
-class GradientFreeWithZeroGradCB(MethodCallback):
+class DisableTorchGradAndBackwardCB(MethodCallback):
     order = 100
     def backward(self, learner: "Learner"): pass
     def enter(self, learner:"Learner"):
@@ -136,4 +137,3 @@ class AddLossReturnedByModelToLossInBackwardCB(MethodCallback):
         else:
             if learner.accelerator is None: learner.loss.backward()
             else: learner.accelerator.backward(learner.loss)
-

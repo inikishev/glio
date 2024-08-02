@@ -2,7 +2,7 @@ from collections.abc import Sequence
 import math
 from collections import deque
 import numpy as np
-from ..design.EventModel import MethodCallback
+from ..design.event_model import MethodCallback
 from .Learner import Learner
 from ..progress_bar import PBar
 

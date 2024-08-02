@@ -1,7 +1,8 @@
 from typing import Optional, Any, Literal
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Sequence, Collection
 import math
 
+import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.artist import Artist
@@ -27,6 +28,10 @@ __all__ = [
     'qpath2d',
     'qimshow_grid',
     'qfuncplot1d',
+    'qscatter',
+    'qtricontour',
+    'qtricontourf',
+    'qpcolormesh',
 ]
 
 class Plot:
@@ -114,6 +119,8 @@ class Plot:
                 vmin=None,
                 vmax=None,
                 alpha = None,
+                xlabel = None,
+                ylabel = None,
                 **kwargs) -> "Plot":
         # convert y to numpy
         if y is None: y = np.arange(len(x))
@@ -132,6 +139,9 @@ class Plot:
             ax.scatter(x, y, s=s, c=c, label=label, marker=marker,cmap=cmap, vmin=vmin, vmax=vmax, alpha=alpha, **kwargs)
             return ax
         self.tfms.append(scatter)
+
+        if xlabel: self.xlabel(xlabel)
+        if ylabel: self.ylabel(ylabel)
         return self
 
     def autoscatter(self, data, label, **kwargs) -> "Plot":
@@ -415,6 +425,97 @@ class Plot:
         self.tfms.append(point)
         return self
 
+    def tricontour(self, x, y, z, levels=10, cmap=None, **kwargs):
+        def contour(ax:Axes) -> Axes:
+            ax.tricontour(x, y, z, levels=levels, cmap=cmap, **kwargs)
+            return ax
+        self.tfms.append(contour)
+        return self
+
+    def tricontourf(self, x, y, z, levels=1000, cmap=None, vmin=None, vmax=None, **kwargs):
+        def contourf(ax:Axes) -> Axes:
+            ax.tricontourf(x, y, z, levels=levels, cmap=cmap, vmin=vmin, vmax=vmax, **kwargs)
+            return ax
+        self.tfms.append(contourf)
+        return self
+
+    def _get_grid(self, x, y, z, mode:Literal["linear", "nearest", "clough"], xlim, ylim, zlim, step):
+        from scipy.interpolate import LinearNDInterpolator, NearestNDInterpolator, CloughTocher2DInterpolator
+        INTERPOLATORS = {
+            'linear': LinearNDInterpolator,
+            'nearest': NearestNDInterpolator,
+            'clough': CloughTocher2DInterpolator
+        }
+        if mode not in INTERPOLATORS: raise ValueError(f'Invalid mode {mode}')
+        xmin, xmax = min(x), max(x)
+        if xlim is not None:
+            if xlim[0] is not None: xmin = xlim[0]
+            if xlim[1] is not None: xmax = xlim[1]
+        ymin, ymax = min(y), max(y)
+        if ylim is not None:
+            if ylim[0] is not None: ymin = ylim[0]
+            if ylim[1] is not None: ymax = ylim[1]
+        if zlim is not None:
+            z = np.clip(z, *zlim)
+        x_grid = np.linspace(xmin, xmax, step)
+        y_grid = np.linspace(ymin, ymax, step)
+        X, Y = np.meshgrid(x_grid,y_grid)
+        interpolator = INTERPOLATORS[mode]((x, y), z)
+        Z = interpolator(X, Y)
+        return X, Y, Z
+
+    def contour(self, x, y, z, levels=10, step = 300, cmap = None, mode:Literal["linear", "nearest", "clough"] = 'linear', xlim = None, ylim = None, zlim = None, alpha = None):
+        X, Y, Z = self._get_grid(x=x, y=y, z=z, mode=mode, xlim=xlim, ylim=ylim, zlim=zlim, step=step)
+        def pcolormesh(ax:Axes) -> Axes:
+            ax.contour(X, Y, Z, levels=levels, cmap=cmap, alpha = alpha)
+            return ax
+        self.tfms.append(pcolormesh)
+        return self
+
+    def contourf(self, x, y, z, levels=10, step = 300, cmap = None, mode:Literal["linear", "nearest", "clough"] = 'linear', xlim = None, ylim = None, zlim = None, alpha = None):
+        X, Y, Z = self._get_grid(x=x, y=y, z=z, mode=mode, xlim=xlim, ylim=ylim, zlim=zlim, step=step)
+        def pcolormesh(ax:Axes) -> Axes:
+            ax.contourf(X, Y, Z, levels=levels, cmap=cmap, alpha = alpha)
+            return ax
+        self.tfms.append(pcolormesh)
+        return self
+
+    def pcolormesh(
+        self,
+        x,
+        y,
+        z,
+        step=300,
+        cmap=None,
+        contour=False,
+        contour_cmap="binary",
+        contour_levels=10,
+        contour_alpha=0.5,
+        mode:Literal["linear", "nearest", "clough"]="linear",
+        xlim=None,
+        ylim=None,
+        zlim=None,
+        alpha=None,
+        shading=None,
+        antialiased: bool = True,
+    ):
+        X, Y, Z = self._get_grid(x=x, y=y, z=z, mode=mode, xlim=xlim, ylim=ylim, zlim=zlim, step=step)
+        def pcolormesh(ax:Axes) -> Axes:
+            ax.pcolormesh(X, Y, Z, cmap=cmap, alpha = alpha, shading = shading, antialiased =antialiased, zorder=0)
+            return ax
+        self.tfms.append(pcolormesh)
+        if contour: self.contour(x,y,z, levels=contour_levels, step=step, cmap=contour_cmap, mode=mode, alpha=contour_alpha, xlim=xlim, ylim=ylim, zlim=zlim)
+        return self
+
+
+    def colorbar(self, cmap = None, location = None, orientation = None, fraction=0.15, shrink = 1., aspect = 20.):
+        def colorbar(ax:Axes) -> Axes:
+            plt.colorbar(ax.collections[0], location=location,orientation=orientation, fraction=fraction, shrink=shrink, aspect=aspect)
+            #ax.get_figure().colorbar(matplotlib.cm.ScalarMappable(norm=None, cmap=cmap), ax=ax, location=location, orientation=orientation, fraction=fraction, shrink=shrink, aspect=aspect) # type:ignore
+            return ax
+        self.tfms.append(colorbar)
+        return self
+
     def legend(self, size=6, edgecolor=None, linewidth=3., frame_alpha = 0.3, **kwargs) -> "Plot":
         def legend(ax:Axes) -> Axes:
             if 'prop' in kwargs: prop = kwargs["prop"]
@@ -675,7 +776,7 @@ class Plot:
         self.tfms.append(fill_between)
         return self
 
-    def style_chart(self, title = None, xlabel:Optional[Any] = 'x', ylabel:Optional[Any] = 'y', show_min=False, show_max=False, diff=False, avg=False, median=False):
+    def style_chart(self, title = None, xlabel:Optional[Any] = 'x', ylabel:Optional[Any] = 'y', show_min=False, show_max=False, diff=False, avg=False, median=False, legend_size = 6):
         self.ticks()
         self.tickparams()
         self.grid()
@@ -686,7 +787,7 @@ class Plot:
         if diff: self.differential()
         if avg: self.moving_average()
         if median: self.moving_median()
-        self.legend()
+        self.legend(size=legend_size)
         return self
 
     def style_img(self, title = None, xlabel:Optional[Any] = None, ylabel:Optional[Any] = None, axes=False):
@@ -781,7 +882,11 @@ def qplot(
     **kwargs,
 ):
     fig, plot = _create_fig(ax)
-    plot.autoplot(data=data, labels=labels, color=color, alpha=alpha, linewidth=linewidth, xlim=xlim, ylim=ylim, **kwargs).style_chart(xlabel=xlabel,ylabel=ylabel,title=title)
+    (
+    plot
+    .autoplot(data=data, labels=labels, color=color, alpha=alpha, linewidth=linewidth, xlim=xlim, ylim=ylim, **kwargs)
+    .style_chart(xlabel=xlabel,ylabel=ylabel,title=title)
+    )
     if show: fig.show()
     else: fig.create()
     return fig
@@ -805,7 +910,11 @@ def qlinechart(
     **kwargs,
 ):
     fig, plot = _create_fig(ax)
-    plot.linechart(x=x, y=y, label=label, color=color, alpha=alpha, linewidth=linewidth, linestyle=linestyle, xlim=xlim, ylim=ylim, **kwargs).style_chart(xlabel=xlabel,ylabel=ylabel,title=title)
+    (
+    plot
+    .linechart(x=x, y=y, label=label, color=color, alpha=alpha, linewidth=linewidth, linestyle=linestyle, xlim=xlim, ylim=ylim, **kwargs)
+    .style_chart(xlabel=xlabel,ylabel=ylabel,title=title)
+    )
     if show: fig.show()
     else: fig.create()
     return fig
@@ -834,7 +943,12 @@ def qpath2d(
     **kwargs,
     ):
     fig, plot = _create_fig(ax)
-    plot.path2d(data=data, label=label, c=c, s=s, marker=marker, cmap=cmap, linecolor=linecolor, line_alpha=line_alpha, marker_alpha=marker_alpha, linewidth=linewidth, det=det, **kwargs).lim(xlim, ylim).style_chart(xlabel=xlabel, ylabel=ylabel, title=title)
+    (
+    plot
+    .path2d(data=data, label=label, c=c, s=s, marker=marker, cmap=cmap, linecolor=linecolor, line_alpha=line_alpha, marker_alpha=marker_alpha, linewidth=linewidth, det=det, **kwargs)
+    .lim(xlim, ylim)
+    .style_chart(xlabel=xlabel, ylabel=ylabel, title=title)
+    )
     if show: fig.show(figsize=figsize)
     else: fig.create(figsize=figsize)
     return fig
@@ -858,7 +972,12 @@ def qpath10d(
     show=False,
     ):
     fig, plot = _create_fig(ax)
-    plot.path10d(data=data, label=label, linecolor=linecolor, marker=marker, cmap=cmap, line_alpha=line_alpha, marker_alpha=marker_alpha, linewidth=linewidth).lim(xlim, ylim).style_chart(xlabel=xlabel, ylabel=ylabel, title=title)
+    (
+    plot
+    .path10d(data=data, label=label, linecolor=linecolor, marker=marker, cmap=cmap, line_alpha=line_alpha, marker_alpha=marker_alpha, linewidth=linewidth)
+    .lim(xlim, ylim)
+    .style_chart(xlabel=xlabel, ylabel=ylabel, title=title)
+    )
     if show: fig.show(figsize=figsize)
     else: fig.create(figsize=figsize)
     return fig
@@ -878,8 +997,11 @@ def qimshow(x,
         show=False,
         **kwargs,):
     fig, plot = _create_fig(ax)
-    (plot.imshow(x=x, cmap=cmap, vmin=vmin, vmax=vmax, alpha=alpha, mode=mode, allow_alpha=allow_alpha, **kwargs)
-     .style_img(title=title, xlabel=xlabel, ylabel=ylabel))
+    (
+    plot
+    .imshow(x=x, cmap=cmap, vmin=vmin, vmax=vmax, alpha=alpha, mode=mode, allow_alpha=allow_alpha, **kwargs)
+    .style_img(title=title, xlabel=xlabel, ylabel=ylabel)
+    )
     if show: fig.show(figsize=figsize)
     else: fig.create(figsize=figsize)
     return fig
@@ -907,8 +1029,11 @@ def qimshow_batch(x,
         show=False,
         **kwargs,):
     fig, plot = _create_fig(ax)
-    (plot.imshow_batch(x=x, maxelems=maxelems, ncol=ncol, nrow=nrow, cmap=cmap, vmin=vmin, vmax=vmax, alpha=alpha, mode=mode, allow_alpha=allow_alpha, padding=padding, normalize=normalize, scale_each=scale_each, pad_value=pad_value, **kwargs)
-    .style_img(title=title, xlabel=xlabel, ylabel=ylabel))
+    (
+    plot
+    .imshow_batch(x=x, maxelems=maxelems, ncol=ncol, nrow=nrow, cmap=cmap, vmin=vmin, vmax=vmax, alpha=alpha, mode=mode, allow_alpha=allow_alpha, padding=padding, normalize=normalize, scale_each=scale_each, pad_value=pad_value, **kwargs)
+    .style_img(title=title, xlabel=xlabel, ylabel=ylabel)
+    )
     if show: fig.show(figsize=figsize)
     else: fig.create(figsize=figsize)
     return fig
@@ -940,10 +1065,10 @@ def qimshow_grid(images,
 
 FIG_KWARGS = {"title", "figsize", "layout"}
 
-def _get_plot_kwargs(locals_copy):
-    return {k:v for k,v in locals_copy.items() if k not in FIG_KWARGS and k != 'show'}
-def _get_fig_kwargs(locals_copy):
-    return {k:v for k,v in locals_copy.items() if k in FIG_KWARGS and k != 'show'}
+def _get_plot_kwargs(locals_copy, blacklist:Sequence | Collection = frozenset()):
+    return {k:v for k,v in locals_copy.items() if k not in FIG_KWARGS and k not in ('show', 'fig') and k not in blacklist}
+def _get_fig_kwargs(locals_copy, blacklist:Sequence | Collection = frozenset()):
+    return {k:v for k,v in locals_copy.items() if k in FIG_KWARGS and k not in ('show', 'fig') and k not in blacklist}
 
 def qfuncplot1d(
         func,
@@ -968,4 +1093,115 @@ def qfuncplot1d(
     fig.add().funcplot1d(**_get_plot_kwargs(kwargs)).style_chart()
     if show: fig.show(**_get_fig_kwargs(kwargs))
     else: fig.create(**_get_fig_kwargs(kwargs))
+    return fig
+
+
+def qscatter(
+    x,
+    y,
+    s = None,
+    c = None,
+    label=None,
+    marker = None,
+    cmap = None,
+    xlabel = 'x',
+    ylabel = 'y',
+    vmin=None,
+    vmax=None,
+    alpha = None,
+    title=None,
+    figsize=None,
+    show=False,
+    layout='compressed',
+    ):
+    fig = Figure()
+    kwargs = locals().copy()
+    fig.add().scatter(**_get_plot_kwargs(kwargs, ['xlabel', 'ylabel'])).style_chart(xlabel=xlabel, ylabel=ylabel)
+    if show: fig.show(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel']))
+    else: fig.create(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel']))
+    return fig
+
+def qtricontour(
+    x,
+    y,
+    z,
+    levels = 10,
+    cmap = None,
+    colorbar = True,
+    xlabel = 'x',
+    ylabel = 'y',
+    vmin = None,
+    vmax = None,
+    zclip = None,
+    title=None,
+    figsize=None,
+    show=False,
+    layout='compressed',
+    ):
+    fig = Figure()
+    kwargs = locals().copy()
+    if zclip is not None: kwargs['z'] = np.clip(z, *zclip)
+    fig.add().tricontour(**_get_plot_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar', 'clipz'])).style_chart(xlabel=xlabel, ylabel=ylabel)
+    if colorbar: fig.get().colorbar(cmap=cmap)
+    if show: fig.show(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar']))
+    else: fig.create(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar']))
+    return fig
+
+def qtricontourf(
+    x,
+    y,
+    z,
+    levels = 1000,
+    cmap = None,
+    colorbar = True,
+    xlabel = 'x',
+    ylabel = 'y',
+    vmin = None,
+    vmax = None,
+    zclip = None,
+    title=None,
+    figsize=None,
+    show=False,
+    layout='compressed',
+    ):
+    fig = Figure()
+    kwargs = locals().copy()
+    if zclip is not None: kwargs['z'] = np.clip(z, *zclip)
+    fig.add().tricontourf(**_get_plot_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar', 'clipz'])).style_chart(xlabel=xlabel, ylabel=ylabel)
+    if colorbar: fig.get().colorbar(cmap=cmap)
+    if show: fig.show(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar']))
+    else: fig.create(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar']))
+    return fig
+
+def qpcolormesh(
+    x,
+    y,
+    z,
+    step=300,
+    cmap=None,
+    contour=False,
+    contour_cmap="binary",
+    contour_levels=10,
+    contour_alpha=0.5,
+    mode="linear",
+    xlim=None,
+    ylim=None,
+    zlim=None,
+    alpha=None,
+    shading=None,
+    antialiased: bool = True,
+    colorbar = True,
+    xlabel = 'x',
+    ylabel = 'y',
+    title=None,
+    figsize=None,
+    show=False,
+    layout='compressed',
+    ):
+    fig = Figure()
+    kwargs = locals().copy()
+    fig.add().pcolormesh(**_get_plot_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar'])).style_chart(xlabel=xlabel, ylabel=ylabel)
+    if colorbar: fig.get().colorbar(cmap=cmap)
+    if show: fig.show(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar']))
+    else: fig.create(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar']))
     return fig

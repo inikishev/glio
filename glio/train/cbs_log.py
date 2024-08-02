@@ -1,6 +1,6 @@
 """Docstring """
 from time import perf_counter
-from ..design.EventModel import ConditionCallback
+from ..design.event_model import ConditionCallback
 from .Learner import Learner
 from ..torch_tools import get_lr
 

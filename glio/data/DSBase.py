@@ -233,7 +233,7 @@ class DS(ABC, torch.utils.data.Dataset):
                 if isinstance(d, torch.Tensor): arrays.append(d.float())
                 elif isinstance(d, (str, int, float)): strings.append(str(d))
             for d in arrays: v.add().imshow(d, label = f'{i}: {"; ".join(strings)}')
-        v.show(nrows=n)
+        v.show(nrow=n)
 
     @final
     def split(self, *splits, shuffle=True, copy_samples=False) -> list["Self"]:

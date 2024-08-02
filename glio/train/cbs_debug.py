@@ -1,6 +1,6 @@
 """Docstring """
 import gc
-from ..design.EventModel import ConditionCallback, MethodCallback
+from ..design.event_model import ConditionCallback, MethodCallback
 from .Learner import Learner
 
 __all__ = [

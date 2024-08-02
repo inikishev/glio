@@ -1,6 +1,6 @@
 import torch
 from itertools import zip_longest
-from ..design.EventModel import ConditionCallback
+from ..design.event_model import ConditionCallback
 from .Learner import Learner
 from ..torch_tools import get_lr, set_lr_ as set_lr_, copy_state_dict, ensure_float
 from ..python_tools import EndlessContinuingIterator

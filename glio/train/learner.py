@@ -1,14 +1,14 @@
 """sss"""
 from collections.abc import Iterable, Callable, Sequence
 from abc import ABC, abstractmethod
-from typing import Optional, Any, TYPE_CHECKING, final, Literal
+from typing import Optional, Any, TYPE_CHECKING, final, Literal, overload
 import os, pathlib, shutil
 from datetime import datetime
 from contextlib import contextmanager
 import torch, torch.utils.data
 import numpy as np
 
-from ..design.EventModel import EventModel, EventModelWithPerformanceDebugging, Callback, ConditionCallback, BasicCallback, EventCallback, MethodCallback
+from ..design.event_model import EventModel, EventModelWithPerformanceDebugging, Callback, ConditionCallback, BasicCallback, EventCallback, MethodCallback
 from ..logger import Logger
 from ..torch_tools import CUDA_IF_AVAILABLE, ensure_device, copy_state_dict
 from ..python_tools import SupportsIter, try_copy, type_str, get__name__, int_at_beginning, to_valid_fname
@@ -80,6 +80,7 @@ class Learner(EventModel):
         loss_fn: Optional[Callable] = None,
         optimizer: Optional[torch.optim.Optimizer | Any] = None,
         scheduler: Optional[torch.optim.lr_scheduler.LRScheduler | Any] = None,
+        note: Any = None,
         accelerator: Optional["Accelerator"] = None,
         device: Optional[torch.device] = CUDA_IF_AVAILABLE,
         logger: Optional[Logger] = None,
@@ -88,6 +89,7 @@ class Learner(EventModel):
     ):
         self.model: torch.nn.Module = model
         self.name: str = name
+        self.note = note
         self.optimizer: Optional[torch.optim.Optimizer | Any] = optimizer
         self.scheduler: Optional[torch.optim.lr_scheduler.LRScheduler | Any] = scheduler
         self.loss_fn: Optional[Callable] = loss_fn
@@ -307,7 +309,7 @@ class Learner(EventModel):
             attrs_state_dict = ("model", "optimizer", "scheduler", "logger"),
             attrs_values = ("cur_batch", "cur_epoch", "total_batch", "total_epoch", "status", "training", "_workdir"),
             ):
-        state_dict = copy_state_dict(self.state_dict(copy=True))
+        state_dict = copy_state_dict(self.state_dict(copy=True, attrs_state_dict=attrs_state_dict, attrs_values=attrs_values))
         yield
         self.load_state_dict(state_dict)
 
@@ -474,7 +476,7 @@ callbacks:
             with open(os.path.join(dir, "model.txt"), "w", encoding='utf8') as f: f.write(str(self.model))
             with open(os.path.join(dir, "optimizer.txt"), "w", encoding='utf8') as f: f.write(str(self.optimizer))
             if hasattr(self.logger, "info"):
-                with open(os.path.join(dir, "logger.yaml"), "w", encoding='utf8') as f: f.write(self.logger.info())
+                with open(os.path.join(dir, "logger.yaml"), "w", encoding='utf8') as f: f.write(self.logger.info_str())
 
     def load_checkpoint(
         self,
@@ -719,6 +721,19 @@ callbacks:
         watch: bool = True,
         watch_step: int = 32,
     ):
+        """Initialize a wandb run.
+
+        Args:
+            project (str): _description_
+            name (Optional[str]): _description_
+            config (dict): _description_
+            notes (Optional[str], optional): _description_. Defaults to None.
+            tags (Sequence | None, optional): _description_. Defaults to None.
+            magic (bool, optional): _description_. Defaults to True.
+            save_code (bool, optional): _description_. Defaults to True.
+            watch (bool, optional): _description_. Defaults to True.
+            watch_step (int, optional): _description_. Defaults to 32.
+        """
         import wandb
         self.project = project
         self.config = config
@@ -737,12 +752,30 @@ callbacks:
         if watch: self.wandb_watch(watch_step=watch_step)
 
     def wandb_watch(self, source:Literal["gradients", "parameters", "all"] | None = "all",  watch_step = 32):
+        """Watch model with wandb.watch.
+
+        Args:
+            source: _description_. Defaults to "all".
+            watch_step (int, optional): _description_. Defaults to 32.
+        """
         self.wandb_run.watch(self.model, log = source, log_freq=watch_step) # type:ignore
 
     def wandb_log(self, metric, value, commit=False):
+        """Log a metric into wandb run.
+
+        Args:
+            metric (_type_): _description_
+            value (_type_): _description_
+            commit (bool, optional): _description_. Defaults to False.
+        """
         self.wandb_run.log({metric: value}, step = self.total_batch, commit=commit) # type:ignore
 
     def wandb_update(self, commit=False):
+        """Push all new metric records since last update to wandb. Does not commit them by default.
+
+        Args:
+            commit (bool, optional): _description_. Defaults to False.
+        """
         for batch in range(self.last_wandb_logged_batch, self.total_batch+1):
             train_metrics = {}
             test_metrics = {}

@@ -3,7 +3,7 @@ from collections.abc import Iterable
 from typing import Any, TYPE_CHECKING, Optional
 from contextlib import nullcontext
 import torch, torch.utils.data
-from ..design.EventModel import Callback, EventCallback
+from ..design.event_model import Callback, EventCallback
 from ..python_tools import SupportsIter
 from ..torch_tools import ensure_device, ensure_detach, ensure_detach_cpu, ensure_cpu
 if TYPE_CHECKING:
@@ -47,6 +47,7 @@ class DefaultBackwardCB(EventCallback):
 class DefaultOptimizerStepCB(EventCallback):
     event = "optimizer_step"
     def __call__(self, learner: "Learner", *args, **kwargs):
+        learner.event('before_optimizer_step')
         learner.optimizer.step(*args, **kwargs) # type:ignore
 
 class DefaultZeroGradCB(EventCallback):
@@ -84,7 +85,7 @@ class DefaultEvalCB(EventCallback):
 
 class DefaultOneBatchCB(EventCallback):
     event = "one_batch"
-    def __call__(self, learner: "Learner", inputs: torch.Tensor, targets: torch.Tensor, train=True, status=None):
+    def __call__(self, learner: "Learner", inputs: torch.Tensor, targets: torch.Tensor, train=True):
         if train: learner.train()
         else: learner.eval()
         if learner.accelerator is None: inputs, targets = inputs.to(learner.device), targets.to(learner.device)

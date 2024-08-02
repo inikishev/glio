@@ -3,7 +3,7 @@ from typing import Callable, Optional, final
 from abc import ABC, abstractmethod
 import functools
 import torch, torch.utils.hooks
-from ..design.EventModel import Callback
+from ..design.event_model import Callback
 from .Learner import Learner
 from ..python_tools import type_str
 

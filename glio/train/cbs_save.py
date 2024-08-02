@@ -1,7 +1,7 @@
 """Docstring """
 import os, shutil
 from collections.abc import Mapping, Sequence
-from ..design.EventModel import ConditionCallback, EventCallback
+from ..design.event_model import ConditionCallback, EventCallback
 from .Learner import Learner
 from ..python_tools import int_at_beginning
 

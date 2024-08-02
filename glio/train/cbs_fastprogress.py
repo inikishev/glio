@@ -3,7 +3,7 @@ from collections.abc import Sequence
 import numpy as np
 from scipy.signal import convolve
 from fastprogress.fastprogress import master_bar, progress_bar
-from ..design.EventModel import MethodCallback
+from ..design.event_model import MethodCallback
 from .Learner import Learner
 
 __all__ = [

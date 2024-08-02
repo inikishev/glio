@@ -61,7 +61,11 @@ def imreadtensor(path:str):
     else: return torch.as_tensor(imread(path))
 
 def imwrite(x:np.ndarray | torch.Tensor, outfile:str, mkdir=False, normalize=True, compression = 9, optimize=True):
-    if mkdir and not os.path.exists(os.path.dirname(outfile)): os.mkdir(os.path.dirname(outfile))
+    while x.ndim not in (2, 3): 
+        if x.shape[0] > 1: raise ValueError('x must be 2d or 3d')
+        x = x[0]
     if isinstance(x, torch.Tensor): x = x.detach().cpu().numpy()
     if normalize: x = norm(x, 0, 255).astype(np.uint8) # type:ignore
-    PIL.Image.fromarray(x).save(outfile, optimize=optimize, compress_level=compression)
+    if x.ndim == 3 and x.shape[0] < x.shape[2]: x = np.transpose(x, (1, 2, 0))
+    if mkdir and not os.path.exists(os.path.dirname(outfile)): os.mkdir(os.path.dirname(outfile))
+    PIL.Image.fromarray(x).save(outfile, optimize=optimize, compress_level=compression) # type:ignore

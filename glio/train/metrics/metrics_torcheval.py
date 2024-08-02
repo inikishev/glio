@@ -3,7 +3,7 @@ import torch.nn.functional as F
 import torcheval.metrics.functional as tmf
 
 from ..Learner import Learner
-from ...design.EventModel import Callback, EventModel
+from ...design.event_model import Callback, EventModel
 from .metric_callback import MetricCallback
 
 __all__ = [

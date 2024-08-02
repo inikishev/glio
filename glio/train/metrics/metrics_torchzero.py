@@ -9,7 +9,7 @@ from torchzero.metrics.iou import iou
 from torchzero.metrics.accuracy import accuracy
 
 from ..Learner import Learner
-from ...design.EventModel import MethodCallback
+from ...design.event_model import MethodCallback
 from ...torch_tools import batched_raw_preds_to_one_hot
 from .metric_callback import PerClassMetricCallback
 
@@ -76,7 +76,6 @@ class TorchzeroAccuracyCB(PerClassMetricCallback):
         preds must be raw BC(*) format, targets - one-hot BC(*).
         """
         super().__init__(class_labels = class_labels, agg_ignore_bg = ignore_bg, train = train, test = test)
-        self.class_labels = class_labels
 
         self.batch_cond = None if step<=1 else lambda _, i: i%step==0
         self.metric = name

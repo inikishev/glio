@@ -10,7 +10,7 @@ import numpy as np
 from PIL import Image
 
 from .Learner import Learner
-from ..design.EventModel import BasicCallback, MethodCallback
+from ..design.event_model import BasicCallback, MethodCallback
 from . hooks_base import LearnerForwardHook, LearnerBackwardHook, LearnerRegisterTensorBackwardHook, LearnerRegisterForwardHook
 from ..torch_tools import is_container, is_inplace, ensure_device, is_inplace_recursive, copy_state_dict
 from ..transforms.intensity import norm
