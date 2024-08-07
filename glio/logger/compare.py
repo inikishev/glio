@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Literal
 from collections.abc import Sequence
 import os, logging
 
@@ -60,7 +60,7 @@ class Comparison:
         return cls(loggers)
 
     def _filt(self, filt):
-        if filt is not None: 
+        if filt is not None:
             if not isinstance(filt, Sequence): filt = (filt, )
             return {name: logger for name, logger in self.loggers.items() if name in flexible_filter(self.loggers.keys(), filt)}
         else: return self.loggers
@@ -72,6 +72,8 @@ class Comparison:
         loggers = self._filt(filt)
         if criterion == 'min': best = sorted([(name, logger.min(key)) for name, logger in loggers.items() if key in logger], key=lambda x: x[1])[:n]
         elif criterion == 'max': best = sorted([(name, logger.max(key)) for name, logger in loggers.items() if key in logger], key=lambda x: x[1], reverse=True)[:n]
+        elif criterion == 'lastmin': best = sorted([(name, logger.last(key)) for name, logger in loggers.items() if key in logger], key=lambda x: x[1])[:n]
+        elif criterion == 'lastmax': best = sorted([(name, logger.last(key)) for name, logger in loggers.items() if key in logger], key=lambda x: x[1], reverse=True)[:n]
         else: raise ValueError(f'Unknown criterion {criterion}')
         best_loggers = {name: loggers[name] for name, _ in best}
         if filt is not None: best_loggers = {name: logger for name, logger in best_loggers.items() if name in flexible_filter(best_loggers.keys(), filt)}
@@ -81,19 +83,131 @@ class Comparison:
         best_loggers = self._get_best_loggers(key, n, criterion, filt)
         return _loggers_plot(best_loggers, key, figsize=figsize, show=show, **kwargs)
 
-    def tricontourf(self, filt:Optional[str], x:str, y:str, z:str, mode = 'last', levels=1000, cmap=None, vmin=None, vmax=None, zclip = None, **kwargs):
+    def _get_contour_values(self, filt:Optional[str], x:str, y:str, z:str, mode = 'last', ):
         xvals = []
         yvals = []
         zvals = []
         loggers = self._filt(filt)
         for name, logger in loggers.items():
-            xvals.append(logger.note[x])
-            yvals.append(logger.note[y])
+            xvals.append(logger.note[x]) # type:ignore
+            yvals.append(logger.note[y]) # type:ignore
             if mode == 'last': zvals.append(logger.last(z))
             elif mode == 'min': zvals.append(logger.min(z))
             elif mode == 'max': zvals.append(logger.max(z))
             else: raise ValueError(f'Unknown mode {mode}')
-        qtricontourf(xvals, yvals, zvals, levels=levels, cmap=cmap, vmin = vmin, vmax = vmax, zclip=zclip, xlabel=x, ylabel=y, title = z, **kwargs)
+        return xvals, yvals, zvals
+
+    def tricontourf(
+        self,
+        filt: Optional[str],
+        x: str,
+        y: str,
+        z: str,
+        mode="last",
+        levels=1000,
+        cmap=None,
+        vmin=None,
+        vmax=None,
+        zclip=None,
+        xscale=None,
+        yscale=None,
+        **kwargs,
+    ):
+        xvals, yvals, zvals = self._get_contour_values(filt = filt, x=x, y=y, z=z, mode=mode)
+        qtricontourf(
+            xvals,
+            yvals,
+            zvals,
+            levels=levels,
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
+            zclip=zclip,
+            xlabel=x,
+            ylabel=y,
+            title=z,
+            xscale=xscale,
+            yscale=yscale,
+            **kwargs,
+        )
+
+    def pcolormesh(
+        self,
+        filt: Optional[str],
+        x: str,
+        y: str,
+        z: str,
+        mode="last",
+        step=500,
+        cmap=None,
+        xlim = None,
+        ylim = None,
+        zlim = None,
+        contour=True,
+        contour_cmap="binary",
+        contour_alpha=0.5,
+        contour_levels=10,
+        xscale=None,
+        yscale=None,
+        figsize = None,
+        interp_mode: Literal["linear", "nearest", "clough"] = 'linear',
+        **kwargs,
+    ):
+        xvals, yvals, zvals = self._get_contour_values(filt = filt, x=x, y=y, z=z, mode=mode)
+        qpcolormesh(
+            xvals,
+            yvals,
+            zvals,
+            step=step,
+            cmap=cmap,
+            xlim = xlim,
+            ylim = ylim,
+            zlim = zlim,
+            contour=contour,
+            contour_cmap=contour_cmap,
+            contour_alpha=contour_alpha,
+            contour_levels=contour_levels,
+            xlabel=x,
+            ylabel=y,
+            xscale=xscale,
+            yscale=yscale,
+            title=z,
+            mode = interp_mode,
+            figsize = figsize,
+            **kwargs,
+        )
+
+    def scatter(
+        self,
+        filt: Optional[str],
+        x: str,
+        y: str,
+        c: str,
+        mode="last",
+        cmap=None,
+        vmin=None,
+        vmax=None,
+        xscale=None,
+        yscale=None,
+        norm = None,
+        **kwargs,
+    ):
+        xvals, yvals, zvals = self._get_contour_values(filt = filt,x=x, y=y, z=c, mode=mode)
+        qscatter(
+            x = xvals,
+            y = yvals,
+            c = zvals,
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
+            xlabel=x,
+            ylabel=y,
+            title=c,
+            xscale=xscale,
+            yscale=yscale,
+            norm = norm,
+            **kwargs,
+        )
 
     def plot_compare_with_best(self, key, compare, n = 1, criterion = 'min', figsize=None, show=False, filt=None, **kwargs):
         best_loggers = self._get_best_loggers(key, n, criterion, filt)

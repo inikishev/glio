@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, Literal
 from collections.abc import Callable
 from abc import ABC, abstractmethod
 from contextlib import nullcontext
@@ -91,6 +91,7 @@ class Benchmark(ABC):
             if trial is not None:
                 trial.report(loss, cur_iter)
                 if trial.should_prune(): raise optuna.TrialPruned()
+            self.loss = loss
 
             if max_evals is not None and self.num_evals >= max_evals: break
             if max_steps is not None and cur_iter >= max_steps: break
@@ -98,9 +99,18 @@ class Benchmark(ABC):
 
         if print_loss: print(f'reached {self.logger.min('loss')}')
         return loss  # type:ignore
-        #endregion
+        # endregion
 
-    def workdir(self, name: Optional[str] = None, dir:str = 'runs', mkdir = True, suffix = 'hparams', hparams=None, check_exists = True):
+    def workdir(
+        self,
+        name: Optional[str] = None,
+        dir: str = "runs",
+        mkdir=True,
+        suffix: Literal['datetime', 'hparams', 'hparams+loss']="hparams+loss",
+        hparams=None,
+        loss=None,
+        check_exists=True,
+    ):
         """Creates and returns `dir/{name} {suffix}`, where `suffix` is hyperparams.
 
         Args:
@@ -130,13 +140,19 @@ class Benchmark(ABC):
 
             # create a suffix
             if suffix == 'datetime': suffix_str = datetime.now().strftime("%Y.%m.%d %H-%M-%S")
-            elif suffix == 'hparams':
+            elif suffix == 'hparams' or suffix == 'hparams+loss':
                 if isinstance(hparams, dict): suffix_str = _dict_to_valid_fname_str(hparams)
-                else: suffix_str = to_valid_fname(str(hparams))
+                else: suffix_str = to_valid_fname(str(hparams), valid_chars=_valid_chars)
+                if suffix == 'hparams+loss' and loss is not None:
+                    if isinstance(loss, torch.Tensor): loss = float(loss.detach().cpu().item())
+                    suffix_str += f' loss={loss}'
+
             else: raise ValueError(f'Invalid suffix: {suffix}')
 
+            # make sure filename is valid
+            fname = to_valid_fname(f'{name} {suffix_str}', valid_chars=_valid_chars)
             # assign _workdir
-            self._workdir = os.path.join(dir, f'{name} {suffix_str}')
+            self._workdir = os.path.join(dir, fname)
 
             # create _workdir or raise if it exists
             if not os.path.exists(self._workdir): os.mkdir(self._workdir)
@@ -147,7 +163,7 @@ class Benchmark(ABC):
     def save_vis(self, dir):
         pass
 
-    def save(self, opt=None, hparams = None, name: Optional[str] = None, dir = 'runs', ):
+    def save(self, opt=None, hparams = None, loss=None, name: Optional[str] = None, dir = 'runs', check_exists=True,):
         hyperparameters = {}
 
         # save optimizer name
@@ -167,18 +183,29 @@ class Benchmark(ABC):
             name = to_valid_fname(hyperparameters['optimizer'])
 
         # save logger
-        self.logger.save(os.path.join(self.workdir(name = name, dir = dir, hparams=hparams), 'logger.npz'))
+        self.logger.save(os.path.join(self.workdir(name = name, dir = dir, hparams=hparams, loss=loss,check_exists=check_exists,), 'logger.npz'))
 
         # save hyperparams to a yaml
         with open(os.path.join(self.workdir(name = name, dir = dir), 'hyperparameters.yaml'), 'w', encoding='utf8') as f:
             yaml.dump(hyperparameters, f, sort_keys=False, Dumper = _SafeIndentDumper)
 
         # save a visualization (if this method does something)
-        self.save_vis(self.workdir(name = name, dir = dir))
+        self.save_vis(self.workdir(name = name, dir = dir, check_exists=check_exists,))
 
     # region .objective
     @classmethod
-    def objective(cls, bench_kwargs, max_steps = None, max_evals = None, opt_cls:Any = ..., fixed_kwargs = {}, search_kwargs = {}, do_backward = True, save = True): # pylint:disable=W0102
+    def objective(
+        cls,
+        bench_kwargs,
+        max_steps=None,
+        max_evals=None,
+        opt_cls: Any = ...,
+        fixed_kwargs={},
+        search_kwargs={},
+        do_backward=True,
+        save=True,
+        check_exists=True,
+    ):  # pylint:disable=W0102
         """
         Create an optuna objective.
 
@@ -233,6 +260,10 @@ class Benchmark(ABC):
 
                 # bool - True / False
                 elif isinstance(v, bool): hparams[k] = trial.suggest_categorical(k, [True, False])
+
+                # string - copy value from that hyperparam
+                elif isinstance(v, str): hparams[k] = hparams[v]
+
                 else: raise ValueError(f"Unsupported type {type(v)}")
 
             # create benchmark of self class
@@ -246,7 +277,7 @@ class Benchmark(ABC):
             loss = bench.run(opt, max_steps=max_steps, max_evals=max_evals, do_backward=do_backward, trial=trial)
 
             # save results
-            if save: bench.save(opt = opt, hparams = hparams)
+            if save: bench.save(opt = opt, hparams = hparams, loss=loss, check_exists=check_exists)
             if isinstance(loss, torch.Tensor): loss = loss.detach().cpu()
 
             # return loss

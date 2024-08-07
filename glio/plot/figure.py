@@ -110,7 +110,7 @@ class Plot:
 
     def scatter(self,
                 x,
-                y,
+                y = None,
                 s = None,
                 c = None,
                 label=None,
@@ -121,9 +121,12 @@ class Plot:
                 alpha = None,
                 xlabel = None,
                 ylabel = None,
+                norm = None,
                 **kwargs) -> "Plot":
         # convert y to numpy
-        if y is None: y = np.arange(len(x))
+        if y is None: 
+            if len(x[0]) == 2: x, y = zip(*x)
+            else: y = np.arange(len(x))
         if isinstance(y, torch.Tensor): y = y.detach().cpu().numpy()
         elif not isinstance(y, np.ndarray): y = np.array(y)
 
@@ -136,7 +139,7 @@ class Plot:
         if isinstance(c, torch.Tensor): c = c.detach().cpu().numpy()
 
         def scatter(ax:Axes) -> Axes:
-            ax.scatter(x, y, s=s, c=c, label=label, marker=marker,cmap=cmap, vmin=vmin, vmax=vmax, alpha=alpha, **kwargs)
+            ax.scatter(x, y, s=s, c=c, label=label, marker=marker,cmap=cmap, vmin=vmin, vmax=vmax, alpha=alpha, norm=norm, **kwargs)
             return ax
         self.tfms.append(scatter)
 
@@ -464,10 +467,24 @@ class Plot:
         Z = interpolator(X, Y)
         return X, Y, Z
 
-    def contour(self, x, y, z, levels=10, step = 300, cmap = None, mode:Literal["linear", "nearest", "clough"] = 'linear', xlim = None, ylim = None, zlim = None, alpha = None):
+    def contour(
+        self,
+        x,
+        y,
+        z,
+        levels=10,
+        step=300,
+        cmap=None,
+        mode: Literal["linear", "nearest", "clough"] = "linear",
+        xlim=None,
+        ylim=None,
+        zlim=None,
+        alpha=None,
+        norm = None,
+    ):
         X, Y, Z = self._get_grid(x=x, y=y, z=z, mode=mode, xlim=xlim, ylim=ylim, zlim=zlim, step=step)
         def pcolormesh(ax:Axes) -> Axes:
-            ax.contour(X, Y, Z, levels=levels, cmap=cmap, alpha = alpha)
+            ax.contour(X, Y, Z, levels=levels, cmap=cmap, alpha = alpha, norm = norm)
             return ax
         self.tfms.append(pcolormesh)
         return self
@@ -497,14 +514,15 @@ class Plot:
         zlim=None,
         alpha=None,
         shading=None,
+        norm = None,
         antialiased: bool = True,
     ):
         X, Y, Z = self._get_grid(x=x, y=y, z=z, mode=mode, xlim=xlim, ylim=ylim, zlim=zlim, step=step)
         def pcolormesh(ax:Axes) -> Axes:
-            ax.pcolormesh(X, Y, Z, cmap=cmap, alpha = alpha, shading = shading, antialiased =antialiased, zorder=0)
+            ax.pcolormesh(X, Y, Z, cmap=cmap, alpha = alpha, shading = shading, antialiased =antialiased, zorder=0, norm=norm)
             return ax
         self.tfms.append(pcolormesh)
-        if contour: self.contour(x,y,z, levels=contour_levels, step=step, cmap=contour_cmap, mode=mode, alpha=contour_alpha, xlim=xlim, ylim=ylim, zlim=zlim)
+        if contour: self.contour(x,y,z, levels=contour_levels, step=step, cmap=contour_cmap, mode=mode, alpha=contour_alpha, xlim=xlim, ylim=ylim, zlim=zlim, norm=norm)
         return self
 
 
@@ -650,6 +668,23 @@ class Plot:
         self.tfms.append(title_)
         return self
 
+    def xscale(self, scale, **kwargs):
+        def xscale(ax:Axes) -> Axes:
+            ax.set_xscale(scale, **kwargs)
+            return ax
+        self.tfms.append(xscale)
+        return self
+    def yscale(self, scale, **kwargs):
+        def yscale(ax:Axes) -> Axes:
+            ax.set_yscale(scale, **kwargs)
+            return ax
+        self.tfms.append(yscale)
+        return self
+    def scale(self, xscale, yscale, **kwargs):
+        self.xscale(xscale, **kwargs)
+        self.yscale(yscale, **kwargs)
+        return self
+
     def show_min(self, target = 0, size=6, show_label = True, weight="bold", **kwargs) -> "Plot":
         def show_min(ax:Axes) -> Axes:
             artists = _ax_match_target(ax.get_children(), target)
@@ -776,9 +811,28 @@ class Plot:
         self.tfms.append(fill_between)
         return self
 
-    def style_chart(self, title = None, xlabel:Optional[Any] = 'x', ylabel:Optional[Any] = 'y', show_min=False, show_max=False, diff=False, avg=False, median=False, legend_size = 6):
-        self.ticks()
-        self.tickparams()
+    def style_chart(
+        self,
+        title=None,
+        xlabel: Optional[Any] = "x",
+        ylabel: Optional[Any] = "y",
+        show_min=False,
+        show_max=False,
+        diff=False,
+        avg=False,
+        median=False,
+        legend_size=6,
+        xscale = None,
+        yscale = None,
+        xlim = None,
+        ylim = None,
+    ):
+        if xlim is not None: self.xlim(xlim)
+        if ylim is not None: self.ylim(ylim)
+        if xscale is not None: self.xscale(xscale)
+        if yscale is not None: self.yscale(yscale)
+        if xscale != 'log': self.ticks()
+        if xscale != 'log': self.tickparams()
         self.grid()
         self.axlabels(xlabel, ylabel)
         if title is not None: self.title(title)
@@ -876,6 +930,8 @@ def qplot(
     ylim=None,
     xlabel='x',
     ylabel='y',
+    xscale=None,
+    yscale=None,
     title=None,
     ax=None,
     show=False,
@@ -885,7 +941,7 @@ def qplot(
     (
     plot
     .autoplot(data=data, labels=labels, color=color, alpha=alpha, linewidth=linewidth, xlim=xlim, ylim=ylim, **kwargs)
-    .style_chart(xlabel=xlabel,ylabel=ylabel,title=title)
+    .style_chart(xlabel=xlabel,ylabel=ylabel,title=title,xscale=xscale,yscale=yscale)
     )
     if show: fig.show()
     else: fig.create()
@@ -904,6 +960,8 @@ def qlinechart(
     ylim=None,
     xlabel='x',
     ylabel='y',
+    xscale=None,
+    yscale=None,
     title=None,
     ax=None,
     show=False,
@@ -913,7 +971,7 @@ def qlinechart(
     (
     plot
     .linechart(x=x, y=y, label=label, color=color, alpha=alpha, linewidth=linewidth, linestyle=linestyle, xlim=xlim, ylim=ylim, **kwargs)
-    .style_chart(xlabel=xlabel,ylabel=ylabel,title=title)
+    .style_chart(xlabel=xlabel,ylabel=ylabel,title=title,xscale=xscale,yscale=yscale)
     )
     if show: fig.show()
     else: fig.create()
@@ -1083,6 +1141,8 @@ def qfuncplot1d(
         alpha=None,
         linewidth=None,
         linestyle=None,
+        xscale=None,
+        yscale=None,
         title=None,
         figsize=None,
         show=False,
@@ -1090,7 +1150,7 @@ def qfuncplot1d(
         ):
     fig = Figure()
     kwargs = locals().copy()
-    fig.add().funcplot1d(**_get_plot_kwargs(kwargs)).style_chart()
+    fig.add().funcplot1d(**_get_plot_kwargs(kwargs, ["xscale", "yscale"])).style_chart(xscale=xscale, yscale=yscale)
     if show: fig.show(**_get_fig_kwargs(kwargs))
     else: fig.create(**_get_fig_kwargs(kwargs))
     return fig
@@ -1109,6 +1169,10 @@ def qscatter(
     vmin=None,
     vmax=None,
     alpha = None,
+    xscale=None,
+    yscale=None,
+    norm = None,
+    colorbar = False,
     title=None,
     figsize=None,
     show=False,
@@ -1116,7 +1180,13 @@ def qscatter(
     ):
     fig = Figure()
     kwargs = locals().copy()
-    fig.add().scatter(**_get_plot_kwargs(kwargs, ['xlabel', 'ylabel'])).style_chart(xlabel=xlabel, ylabel=ylabel)
+    (
+    fig
+    .add()
+    .scatter(**_get_plot_kwargs(kwargs, ['xlabel', 'ylabel', "xscale", "yscale", 'colorbar']))
+    .style_chart(xlabel=xlabel, ylabel=ylabel, xscale=xscale, yscale=yscale)
+    )
+    if colorbar: fig.get().colorbar(cmap=cmap)
     if show: fig.show(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel']))
     else: fig.create(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel']))
     return fig
@@ -1133,6 +1203,8 @@ def qtricontour(
     vmin = None,
     vmax = None,
     zclip = None,
+    xscale=None,
+    yscale=None,
     title=None,
     figsize=None,
     show=False,
@@ -1141,7 +1213,11 @@ def qtricontour(
     fig = Figure()
     kwargs = locals().copy()
     if zclip is not None: kwargs['z'] = np.clip(z, *zclip)
-    fig.add().tricontour(**_get_plot_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar', 'clipz'])).style_chart(xlabel=xlabel, ylabel=ylabel)
+    (
+    fig
+    .add().tricontour(**_get_plot_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar', 'clipz', "xscale", "yscale"]))
+    .style_chart(xlabel=xlabel, ylabel=ylabel, xscale=xscale, yscale=yscale)
+    )
     if colorbar: fig.get().colorbar(cmap=cmap)
     if show: fig.show(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar']))
     else: fig.create(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar']))
@@ -1159,6 +1235,8 @@ def qtricontourf(
     vmin = None,
     vmax = None,
     zclip = None,
+    xscale=None,
+    yscale=None,
     title=None,
     figsize=None,
     show=False,
@@ -1167,7 +1245,12 @@ def qtricontourf(
     fig = Figure()
     kwargs = locals().copy()
     if zclip is not None: kwargs['z'] = np.clip(z, *zclip)
-    fig.add().tricontourf(**_get_plot_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar', 'clipz'])).style_chart(xlabel=xlabel, ylabel=ylabel)
+    (
+    fig
+    .add()
+    .tricontourf(**_get_plot_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar', 'clipz', "xscale", "yscale"]))
+    .style_chart(xlabel=xlabel, ylabel=ylabel, xscale=xscale, yscale=yscale)
+    )
     if colorbar: fig.get().colorbar(cmap=cmap)
     if show: fig.show(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar']))
     else: fig.create(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar']))
@@ -1183,7 +1266,7 @@ def qpcolormesh(
     contour_cmap="binary",
     contour_levels=10,
     contour_alpha=0.5,
-    mode="linear",
+    mode:Literal["linear", "nearest", "clough"]="linear",
     xlim=None,
     ylim=None,
     zlim=None,
@@ -1193,6 +1276,9 @@ def qpcolormesh(
     colorbar = True,
     xlabel = 'x',
     ylabel = 'y',
+    xscale=None,
+    yscale=None,
+    norm = None,
     title=None,
     figsize=None,
     show=False,
@@ -1200,7 +1286,12 @@ def qpcolormesh(
     ):
     fig = Figure()
     kwargs = locals().copy()
-    fig.add().pcolormesh(**_get_plot_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar'])).style_chart(xlabel=xlabel, ylabel=ylabel)
+    (
+    fig
+    .add()
+    .pcolormesh(**_get_plot_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar', "xscale", "yscale"]))
+    .style_chart(xlabel=xlabel, ylabel=ylabel, xscale=xscale, yscale=yscale)
+    )
     if colorbar: fig.get().colorbar(cmap=cmap)
     if show: fig.show(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar']))
     else: fig.create(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar']))

@@ -1,10 +1,18 @@
+from collections.abc import Callable
 from contextlib import nullcontext
 import random
 import numpy as np
 import torch
 from ..torch_tools import seeded_rng
 
-__all__ = ("randrect", "randrect_like", "randperm", "randperm_like")
+__all__ = (
+    "randrect", 
+    "randrect_like", 
+    "randperm", 
+    "randperm_like",
+    "make_seeded",
+    
+    )
 
 def randrect(shape, fill = lambda: random.normalvariate(0, 1), device=None, seed=None):
     """Randomly placed rectangle filled with random value from normal distribution."""
@@ -55,3 +63,17 @@ def randperm_like(obj,
     ):
     return randperm(len(obj), out=out, dtype=dtype, layout=layout, device=device, pin_memory=pin_memory, requires_grad=requires_grad, seed=seed)
 
+def make_seeded(fn:Callable, seed = 0) -> Callable:
+    def wrapper(*args, seed=seed, **kwargs):
+        with seeded_rng(seed):
+            return fn(*args, **kwargs)
+    return wrapper
+
+class Seeded:
+    def __init__(self, seed=0) -> None:
+        self.seed = seed
+    def __call__(self, fn:Callable) -> Callable:
+        def wrapper(*args, seed=self.seed, **kwargs):
+            with seeded_rng(seed):
+                return fn(*args, **kwargs)
+        return wrapper

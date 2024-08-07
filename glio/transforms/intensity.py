@@ -39,7 +39,7 @@ __all__ = [
     "RandContrast",
 ]
 
-def znorm(x:torch.Tensor | np.ndarray, mean=0., std=1.):
+def znorm(x:torch.Tensor | np.ndarray, mean=0., std=1.) -> Any:
     """Global z-normalization"""
     if x.std() != 0: return ((x - x.mean()) / (x.std() / std)) + mean
     return x - x.mean()
