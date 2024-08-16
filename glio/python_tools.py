@@ -179,6 +179,14 @@ def perf_counter_context(name: Optional[str | Any] = None, ndigits: Optional[int
     if ndigits is not None: time_took = round(time_took, ndigits)
     print(f"{name} took {time_took} perf_counter seconds")
 
+
+class PerfCounter:
+    def __init__(self):
+        self.times= []
+
+    def step(self):
+        self.times.append(perf_counter())
+
 def flexible_filter(keys:Iterable[str], filters:Iterable[Callable | str | list[str] | tuple]) -> list[str]:
     """filters is a sequence of filters. Returns keys that match all filters.
 
@@ -332,20 +340,17 @@ def dict_to_table(data:Mapping, key, order = None, sort_key: Optional[Callable] 
 
 
 def get_all_files(path:str, recursive:bool = True, extensions: Optional[str | Sequence[str]] = None, path_filter:Optional[Callable] = None) -> list[str]:
-    """_summary_
+    """Get all files recursively.
 
-    Args:
-        path (str): _description_
-        recursive (bool, optional): _description_. Defaults to True.
-        extensions (Optional[str  |  Sequence[str]], optional): _description_. Defaults to None.
-        path_filter (Optional[Callable], optional): _description_. Defaults to None.
-
-    Returns:
-        list[str]: _description_
+    :param path: Path to search in.
+    :param recursive: defaults to True
+    :param extensions: Extensions. defaults to None
+    :param path_filter: _description_, defaults to None
+    :return: _description_
     """
     all_files = []
     if isinstance(extensions, str): extensions = [extensions]
-    if extensions is not None: extensions = tuple(extensions)
+    if extensions is not None: extensions = tuple([i.lower() for i in extensions])
     if recursive:
         for root, _, files in (os.walk(path)):
             for file in files:
@@ -387,10 +392,10 @@ def ensure_list(x) -> list:
     if isiterable(x): return list(x)
     return [x]
 
-def pretty_print_dict(d: dict) -> None:
+def pretty_print_dict(d: Mapping) -> None:
     """returns recursive dicts using json lib."""
     import json
-    print(json.dumps(d, indent=4, sort_keys=False))
+    print(json.dumps(dict(d), indent=4, sort_keys=False))
 
 class Wrapper:
     """Wraps some object. Basically can let you store attributes in built-in types."""
@@ -785,7 +790,7 @@ def sequence_to_md_table(s:Sequence[Sequence], keys:Optional[Sequence] = None, f
     if transpose: s = list(zip(*s))
 
     if keys is None:
-        if first_row_keys: 
+        if first_row_keys:
             keys = s[0]
             s = s[1:]
         else: keys = list(range(len(s)))

@@ -300,7 +300,7 @@ class Logger:
                 state_dict[f"VALS {k}"] = self.totensor(k)
                 state_dict[f"KEYS {k}"] = torch.as_tensor(self(k)[0])
             except Exception as e: # pylint:disable=W0718
-                logging.warning(msg = "Failed to save `%s`: %s" % (k, e)) # pylint:disable=C0209
+                logging.warning("Failed to save `%s`: %s", k, e)
         return state_dict
 
     def save(self, filepath:str):

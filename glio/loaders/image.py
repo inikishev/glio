@@ -57,8 +57,13 @@ def imread(path:str) -> np.ndarray:
                 return imread_pil(path)
 
 def imreadtensor(path:str):
-    if path.lower().endswith(('jpg', 'jpeg', 'png', 'gif')): return imreadtensor_torchvision(path)
-    else: return torch.as_tensor(imread(path))
+    if path.lower().endswith(('jpg', 'jpeg', 'png', 'gif')): 
+        try:
+            return imreadtensor_torchvision(path)
+        except Exception:
+            return torch.as_tensor(imread(path))
+    else: 
+        return torch.as_tensor(imread(path))
 
 def imwrite(x:np.ndarray | torch.Tensor, outfile:str, mkdir=False, normalize=True, compression = 9, optimize=True):
     while x.ndim not in (2, 3): 

@@ -410,7 +410,7 @@ class Plot:
         self.tfms.append(hline)
         return self
 
-    def line(self, xy1: tuple[float, float],xy2: tuple[float, float] | None, slope = None, **kwargs):
+    def line(self, xy1: tuple[float, float],xy2: tuple[float, float] | None = None, slope = None, **kwargs):
         def line(ax:Axes) -> Axes:
             ax.axline(xy1, xy2, slope=slope, **kwargs)
             return ax

@@ -129,7 +129,8 @@ class RandZNormBatch(RandomTransform):
 def norm(x:torch.Tensor | np.ndarray, min=0, max=1): #pylint:disable=W0622
     """Normalize to `[min, max]`"""
     x -= x.min()
-    if x.max() != 0: x /= x.max()
+    xmax = x.max()
+    if xmax != 0: x /= xmax
     else: return x
     return x * (max - min) + min
 
