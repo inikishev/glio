@@ -1,22 +1,23 @@
-from typing import Optional, Any, Literal
-from collections.abc import Callable, Sequence, Collection
 import math
+from collections.abc import Callable, Collection, Sequence
+from typing import Any, Literal, Optional
 
 import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib.axes import Axes
+import numpy as np
+import scipy.ndimage
+import scipy.signal
+import torch
 from matplotlib.artist import Artist
-from matplotlib.lines import Line2D
+from matplotlib.axes import Axes
 from matplotlib.collections import PathCollection
 from matplotlib.image import AxesImage
-from matplotlib.ticker import AutoMinorLocator, MaxNLocator, AutoLocator
-
-import numpy as np
-import scipy.signal, scipy.ndimage
-import torch
+from matplotlib.lines import Line2D
+from matplotlib.ticker import AutoLocator, AutoMinorLocator, MaxNLocator
 from torchvision.utils import make_grid
 
-from ._common import _parse_plotdata, _img_norm, _ax_match_target, _ax_get_array, _img_norm_tensor
+from ._common import (_ax_get_array, _ax_match_target, _img_norm,
+                      _img_norm_tensor, _parse_plotdata)
 
 __all__ = [
     'Figure',
@@ -429,32 +430,34 @@ class Plot:
         return self
 
     def tricontour(self, x, y, z, levels=10, cmap=None, **kwargs):
-        def contour(ax:Axes) -> Axes:
+        def tricontour(ax:Axes) -> Axes:
             ax.tricontour(x, y, z, levels=levels, cmap=cmap, **kwargs)
             return ax
-        self.tfms.append(contour)
+        self.tfms.append(tricontour)
         return self
 
     def tricontourf(self, x, y, z, levels=1000, cmap=None, vmin=None, vmax=None, **kwargs):
-        def contourf(ax:Axes) -> Axes:
+        def tricontourf(ax:Axes) -> Axes:
             ax.tricontourf(x, y, z, levels=levels, cmap=cmap, vmin=vmin, vmax=vmax, **kwargs)
             return ax
-        self.tfms.append(contourf)
+        self.tfms.append(tricontourf)
         return self
 
     def _get_grid(self, x, y, z, mode:Literal["linear", "nearest", "clough"], xlim, ylim, zlim, step):
-        from scipy.interpolate import LinearNDInterpolator, NearestNDInterpolator, CloughTocher2DInterpolator
+        from scipy.interpolate import (CloughTocher2DInterpolator,
+                                       LinearNDInterpolator,
+                                       NearestNDInterpolator)
         INTERPOLATORS = {
             'linear': LinearNDInterpolator,
             'nearest': NearestNDInterpolator,
             'clough': CloughTocher2DInterpolator
         }
         if mode not in INTERPOLATORS: raise ValueError(f'Invalid mode {mode}')
-        xmin, xmax = min(x), max(x)
+        xmin, xmax = np.min(x), np.max(x)
         if xlim is not None:
             if xlim[0] is not None: xmin = xlim[0]
             if xlim[1] is not None: xmax = xlim[1]
-        ymin, ymax = min(y), max(y)
+        ymin, ymax = np.min(y), np.max(y)
         if ylim is not None:
             if ylim[0] is not None: ymin = ylim[0]
             if ylim[1] is not None: ymax = ylim[1]
@@ -483,10 +486,10 @@ class Plot:
         norm = None,
     ):
         X, Y, Z = self._get_grid(x=x, y=y, z=z, mode=mode, xlim=xlim, ylim=ylim, zlim=zlim, step=step)
-        def pcolormesh(ax:Axes) -> Axes:
+        def contour(ax:Axes) -> Axes:
             ax.contour(X, Y, Z, levels=levels, cmap=cmap, alpha = alpha, norm = norm)
             return ax
-        self.tfms.append(pcolormesh)
+        self.tfms.append(contour)
         return self
 
     def contourf(self, x, y, z, levels=10, step = 300, cmap = None, mode:Literal["linear", "nearest", "clough"] = 'linear', xlim = None, ylim = None, zlim = None, alpha = None):
@@ -519,14 +522,14 @@ class Plot:
     ):
         X, Y, Z = self._get_grid(x=x, y=y, z=z, mode=mode, xlim=xlim, ylim=ylim, zlim=zlim, step=step)
         def pcolormesh(ax:Axes) -> Axes:
-            ax.pcolormesh(X, Y, Z, cmap=cmap, alpha = alpha, shading = shading, antialiased =antialiased, zorder=0, norm=norm)
+            ax.pcolormesh(X, Y, Z, cmap=cmap, alpha = alpha, shading = shading, antialiased = antialiased, zorder=0, norm=norm)
             return ax
         self.tfms.append(pcolormesh)
         if contour: self.contour(x,y,z, levels=contour_levels, step=step, cmap=contour_cmap, mode=mode, alpha=contour_alpha, xlim=xlim, ylim=ylim, zlim=zlim, norm=norm)
         return self
 
 
-    def colorbar(self, cmap = None, location = None, orientation = None, fraction=0.15, shrink = 1., aspect = 20.):
+    def colorbar(self, location = None, orientation = None, fraction=0.15, shrink = 1., aspect = 20.):
         def colorbar(ax:Axes) -> Axes:
             plt.colorbar(ax.collections[0], location=location,orientation=orientation, fraction=fraction, shrink=shrink, aspect=aspect)
             #ax.get_figure().colorbar(matplotlib.cm.ScalarMappable(norm=None, cmap=cmap), ax=ax, location=location, orientation=orientation, fraction=fraction, shrink=shrink, aspect=aspect) # type:ignore
@@ -1186,7 +1189,7 @@ def qscatter(
     .scatter(**_get_plot_kwargs(kwargs, ['xlabel', 'ylabel', "xscale", "yscale", 'colorbar']))
     .style_chart(xlabel=xlabel, ylabel=ylabel, xscale=xscale, yscale=yscale)
     )
-    if colorbar: fig.get().colorbar(cmap=cmap)
+    if colorbar: fig.get().colorbar()
     if show: fig.show(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel']))
     else: fig.create(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel']))
     return fig
@@ -1218,7 +1221,7 @@ def qtricontour(
     .add().tricontour(**_get_plot_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar', 'clipz', "xscale", "yscale"]))
     .style_chart(xlabel=xlabel, ylabel=ylabel, xscale=xscale, yscale=yscale)
     )
-    if colorbar: fig.get().colorbar(cmap=cmap)
+    if colorbar: fig.get().colorbar()
     if show: fig.show(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar']))
     else: fig.create(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar']))
     return fig
@@ -1251,7 +1254,7 @@ def qtricontourf(
     .tricontourf(**_get_plot_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar', 'clipz', "xscale", "yscale"]))
     .style_chart(xlabel=xlabel, ylabel=ylabel, xscale=xscale, yscale=yscale)
     )
-    if colorbar: fig.get().colorbar(cmap=cmap)
+    if colorbar: fig.get().colorbar()
     if show: fig.show(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar']))
     else: fig.create(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar']))
     return fig
@@ -1292,7 +1295,7 @@ def qpcolormesh(
     .pcolormesh(**_get_plot_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar', "xscale", "yscale"]))
     .style_chart(xlabel=xlabel, ylabel=ylabel, xscale=xscale, yscale=yscale)
     )
-    if colorbar: fig.get().colorbar(cmap=cmap)
+    if colorbar: fig.get().colorbar()
     if show: fig.show(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar']))
     else: fig.create(**_get_fig_kwargs(kwargs, ['xlabel', 'ylabel', 'colorbar']))
     return fig

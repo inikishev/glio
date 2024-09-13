@@ -1,13 +1,17 @@
 """python stuff"""
-from collections.abc import Sequence,Callable, Iterable, Mapping
-from typing import Any, Protocol, Optional
-from time import perf_counter
-from contextlib import contextmanager
-import inspect
-import random, os, pathlib
-import functools, operator
 import copy
+import functools
+import inspect
+import operator
+import os
+import pathlib
+import random
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from contextlib import contextmanager
 from functools import partial
+from time import perf_counter
+from typing import Any, Optional, Protocol
+
 
 class HasGetItem(Protocol):
     def __getitem__(self, __key:Any) -> Any: ...
@@ -281,7 +285,6 @@ def type_str(obj:object | type) -> str:
     """Returns class name that includes the namespace, e.g., `torch.nn.Conv2d`"""
     if not isinstance(obj, type): obj = type(obj)
     return repr(obj).replace("<class '", "").replace("'>", "")
-
 
 
 def to_callable(obj, *args, **kwargs):
