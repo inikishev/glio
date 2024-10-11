@@ -2,7 +2,7 @@ from typing import Optional
 import SimpleITK as sitk
 import numpy as np
 from .crop_bg import crop_bg_imgs
-from .normalize import znormalize_imgs
+from .normalize import znormalize_imgs, znormalize
 from ..python_tools import find_file_containing
 
 def preprocess_images_seg(t1:str, t1ce:str, flair:str, t2w:str, seg:str, cropbg=True):
@@ -90,3 +90,23 @@ def preprocess_brats2024gli_tensor(path:str, cropbg=True):
     import torch
     images, seg = preprocess_brats2024goat(path, cropbg=cropbg)
     return torch.from_numpy(images).to(torch.float32), torch.from_numpy(seg.astype(np.int32))
+
+def preprocess_brats2024met(path:str, cropbg=True):
+    """Crops black background and applies znormalization the image.
+
+    Returns: ndarray[t1ce], ndarray[seg]."""
+    t1ce = find_file_containing(path, "t1c.")
+    seg = find_file_containing(path, 'gtv.')
+    if cropbg: t1ce_crop, seg_crop = crop_bg_imgs([t1ce, seg])
+    else: t1ce_crop, seg_crop = t1ce, sitk.ReadImage(seg)
+    t1ce_norm = znormalize(t1ce_crop)
+
+    return (sitk.GetArrayFromImage(t1ce_norm)[np.newaxis, :, :], np.where(sitk.GetArrayFromImage(seg_crop) == 0, False, True))
+
+def preprocess_brats2024met_tensor(path:str, cropbg=True):
+    """Crops black background and applies znormalization to each modality.
+
+    Returns: torch.Tensor[t1ce], torch.Tensor[seg]."""
+    import torch
+    images, seg = preprocess_brats2024met(path, cropbg=cropbg)
+    return torch.from_numpy(images).to(torch.float32), torch.where(torch.from_numpy(seg) == 0, False, True)

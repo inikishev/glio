@@ -13,7 +13,9 @@ __all__ = [
     "randrot90",
     "randrot90t",
     "RandRot90",
-    "RandRot90t"
+    "RandRot90t",
+    "fast_slice_reduce_size",
+    "FastSliceReduceSize",
 ]
 def randflip(x:torch.Tensor):
     flip_dims = random.sample(population = range(1, x.ndim), k = random.randint(1, x.ndim-1))
@@ -48,3 +50,43 @@ class RandRot90(RandomTransform):
 class RandRot90t(RandomTransform):
     def __init__(self, p:float=0.5): self.p = p
     def forward(self, x:Sequence[torch.Tensor]): return randrot90t(x)
+
+
+def fast_slice_reduce_size(x:torch.Tensor, min_shape: Sequence[int]):
+    times = [i/j for i,j in zip(x.shape[1:], min_shape)]
+    min_times = int(min(times))
+    if min_times <= 2:
+        return x
+    else:
+        reduction = random.randrange(2, min_times)
+        ndim = x.ndim
+        if ndim == 2: return x[:, ::reduction]
+        elif ndim == 3: return x[:, ::reduction, ::reduction]
+        elif ndim == 4: return x[:, ::reduction, ::reduction, ::reduction]
+        else: raise ValueError(f'{x.shape = }')
+
+def fast_slice_reduce_sizet(seq:Sequence[torch.Tensor], min_shape: Sequence[int]):
+    x = seq[0]
+    times = [i/j for i,j in zip(x.shape[1:], min_shape)]
+    min_times = int(min(times))
+    if min_times <= 2:
+        return seq
+    else:
+        reduction = random.randrange(2, min_times)
+        ndim = x.ndim
+        if ndim == 2: return [i[:, ::reduction] for i in seq]
+        elif ndim == 3: return [i[:, ::reduction, ::reduction] for i in seq]
+        elif ndim == 4: return [i[:, ::reduction, ::reduction, ::reduction] for i in seq]
+        else: raise ValueError(f'{x.shape = }')
+
+class FastSliceReduceSize(RandomTransform):
+    def __init__(self, min_shape: Sequence[int], p:float=0.5):
+        self.min_shape = min_shape
+        self.p = p
+    def forward(self, x:torch.Tensor): return fast_slice_reduce_size(x, self.min_shape)
+    
+class FastSliceReduceSizet(RandomTransform):
+    def __init__(self, min_shape: Sequence[int], p:float=0.5):
+        self.min_shape = min_shape
+        self.p = p
+    def forward(self, x:Sequence[torch.Tensor]): return fast_slice_reduce_sizet(x, self.min_shape)

@@ -10,7 +10,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextlib import contextmanager
 from functools import partial
 from time import perf_counter
-from typing import Any, Optional, Protocol
+from typing import Any, Optional, Protocol, overload
 
 
 class HasGetItem(Protocol):
@@ -26,23 +26,23 @@ class HasGetItemInt(Protocol):
 SupportsIter = Iterable | HasGetItemInt
 """Actually working type hint for anything that is iterable."""
 
-def isiterable(x:Any) -> bool:
-    """In some specific case this is better than `isinstance(x, Iterable)` but I don't remember why.
+# def isiterable(x:Any) -> bool:
+#     """In some specific case this is better than `isinstance(x, Iterable)` but I don't remember why.
 
-    Args:
-        x (Any): _description_
+#     Args:
+#         x (Any): _description_
 
-    Returns:
-        bool: _description_
-    """
-    if hasattr(x, '__iter__'): return not isinstance(x, type)
-    if hasattr(x, '__getitem__'):
-        try:
-            x[0] # pylint:disable=W0104
-            return True
-        except Exception: # pylint:disable=W0718
-            return False
-    return False
+#     Returns:
+#         bool: _description_
+#     """
+#     if hasattr(x, '__iter__'): return not isinstance(x, type)
+#     if hasattr(x, '__getitem__'):
+#         try:
+#             x[0] # pylint:disable=W0104
+#             return True
+#         except Exception: # pylint:disable=W0718
+#             return False
+#     return False
 
 def hasgetitem(x:Any) -> bool: return hasattr(x, '__getitem__')
 
@@ -57,26 +57,26 @@ def ismapping(x:Any) -> bool:
     """
     return hasattr(x,"keys") and hasattr(x, "values") and hasattr(x, "items") and hasattr(x, "__getitem__")
 
-def key_value(iterable: SupportsIter):
+def key_value(iterable: Iterable):
     if ismapping(iterable): return iterable.items() # type:ignore
     return enumerate(iterable) #type:ignore
 
-def flatten_generator(iterable:SupportsIter):
-    if isiterable(iterable):
+def flatten_generator(iterable:Iterable):
+    if isinstance(iterable, Iterable):
         for i in key_value(iterable):
-            if isiterable(i[1]):
+            if isinstance(i[1], Iterable):
                 yield from flatten_generator(i[1])
             else: yield i[1]
     else: yield iterable
 
-def flatten(iterable: SupportsIter) -> list[Any]:
-    if isiterable(iterable):
+def flatten(iterable: Iterable) -> list[Any]:
+    if isinstance(iterable, Iterable):
         return [a for i in iterable for a in flatten(i)]
     else:
         return [iterable]
 
 def flatten_by_tree_generator(iterable: HasGetItem, tree):
-    if isiterable(tree):
+    if isinstance(tree, Iterable):
         for k,v in key_value(tree):
             if hasgetitem(v):
                 yield from flatten_by_tree_generator(iterable[k], v)
@@ -138,16 +138,16 @@ def apply_tree(x: Any, tree, cached: Any = None, flatten: bool = False): #pylint
     return y if not flatten else flatten_by_tree(y, tree)
 
 
-def apply_recursive_(iterable: SupportsIter, func: Callable):
+def apply_recursive_(iterable: Iterable, func: Callable):
     """Applies func to all elements of iterable recursively and in-place.
 
     Args:
         iterable (SupportsIter): _description_
         func (Callable): _description_
     """
-    if isiterable(iterable):
+    if isinstance(iterable, Iterable):
         for k,v in key_value(iterable):
-            if isiterable(v): apply_recursive_(v, func)
+            if isinstance(v, Iterable): apply_recursive_(v, func)
             else: iterable[k] = func(v) # type:ignore
     else: iterable = func(iterable)
 
@@ -271,8 +271,8 @@ class ItemUnder2Indexes:
 
 
 
-def reduce_dim(a:SupportsIter) -> list:
-    return functools.reduce(operator.iconcat, a, []) # type:ignore
+def reduce_dim[T](a:Iterable[Iterable[T]]) -> list[T]: # pylint:disable=E0602
+    return functools.reduce(operator.iconcat, a, [])
 
 
 def subclasses_recursive(cls:type | Any) -> set[type]:
@@ -286,24 +286,14 @@ def type_str(obj:object | type) -> str:
     if not isinstance(obj, type): obj = type(obj)
     return repr(obj).replace("<class '", "").replace("'>", "")
 
-
-def to_callable(obj, *args, **kwargs):
-    """Big Chungus."""
-    if isinstance(obj, bool): return lambda _: obj
-    elif not isinstance(obj, type):
-        if len(args) == 0 and len(kwargs) == 0: return obj
-        else: return partial(obj, *args, **kwargs)
-    else: return obj(*args, **kwargs)
-
-
-def int_at_beginning(s:str) -> int | str:
-    """If a string starts with an integer of any length, returns that integer. Otherwise returns the string.
+def int_at_beginning(s:str) -> int | None:
+    """If a string starts with an integer of any length, returns that integer. Otherwise returns None.
 
     >>> int_at_beginning('123abc')
     123
 
     >>> int_at_beginning('abc')
-    'abc'
+    None
     """
     i = 1
     num = None
@@ -312,8 +302,13 @@ def int_at_beginning(s:str) -> int | str:
             num = int(s[:i])
             i+=1
         except ValueError:
-            if num is None: return s
             return num
+
+def int_at_beginning_or_str(s:str) -> int | str:
+    """If a string starts with an integer of any length, returns that integer. Otherwise returns the string."""
+    res = int_at_beginning(s)
+    if res is None: return s
+    return res
 
 def dict_to_table(data:Mapping, key, order = None, sort_key: Optional[Callable] = None) -> str:
     """Returns a table from a dictionary."""
@@ -322,7 +317,7 @@ def dict_to_table(data:Mapping, key, order = None, sort_key: Optional[Callable] 
     if order is not None: keys = order
     if key not in keys: keys.append(key)
     for k in data:
-        for k1 in sorted(list(data[k].keys()), key = int_at_beginning):
+        for k1 in sorted(list(data[k].keys()), key = int_at_beginning_or_str):
             if k1 not in keys: keys.append(k1)
     keys = {k: i for i, k in enumerate(keys)}
 
@@ -377,22 +372,22 @@ def find_file_containing(folder, contains:str, recursive = True, error = True) -
     if error: raise FileNotFoundError(f"File containing {contains} not found in {folder}")
     return None # type:ignore
 
-def get0(x:HasGetItem) -> Any: return x[0]
-def get1(x:HasGetItem) -> Any: return x[1]
-def getlast(x:HasGetItem) -> Any: return x[-1]
+def get0[T](x:Sequence[T]) -> T: return x[0] # pylint:disable = E0602
+def get1[T](x:Sequence[T]) -> T: return x[1] # pylint:disable = E0602
+def getlast[T](x:Sequence[T]) -> T: return x[-1] # pylint:disable = E0602
 
-def identity(x:Any) -> Any: return x
-def identity_kwargs(x:Any, *args, **kwargs) -> Any: return x
-def identity_if_none(func:Callable | None):
+def identity[T](x:T) -> T: return x # pylint:disable = E0602
+def identity_kwargs[T](x:T, *args, **kwargs) -> T: return x # pylint:disable = E0602
+def identity_if_none(func:Callable | None) -> Callable:
     if func is None: return identity
     return func
 def identity_kwargs_if_none(func:Callable | None) -> Callable:
     if func is None: return identity_kwargs
     return func
 
-def ensure_list(x) -> list:
+def ensure_list(x: Any) -> list:
     if isinstance(x, list): return x
-    if isiterable(x): return list(x)
+    if isinstance(x, Iterable): return list(x)
     return [x]
 
 def pretty_print_dict(d: Mapping) -> None:
@@ -514,7 +509,7 @@ def wrap(x):
     class a(type(x)):pass
     return a(x)
 
-def call_if_callable(x:Callable | Any) -> Callable | Any:
+def call_if_callable[T](x:Callable[..., T] | T) -> T: # pylint:disable = E0602
     if callable(x):
         return x()
     else:
@@ -556,10 +551,10 @@ def auto_compose(func: Optional[Callable | Sequence[Callable]]):
     if func is None: return identity
     return func
 
-def try_copy(x: Any, force: bool = False) -> Any:
+def try_copy[T](x: T, force: bool = False) -> T: # pylint:disable = E0602
     if hasattr(x, 'copy'):
-        if callable(x.copy): return x.copy()
-        else: return x.copy
+        if callable(x.copy): return x.copy() # type:ignore
+        else: return x.copy # type:ignore
     else:
         try: return copy.copy(x)
         except TypeError: return copy.deepcopy(x) if force else x
@@ -676,7 +671,7 @@ class IterateSingleItem:
         return self.n
 
 
-def getfoldersizeMB(folder):
+def getfoldersizeMB(folder) -> float:
     total = 0
     for root, _, files in os.walk(folder):
         for file in files:
@@ -685,10 +680,10 @@ def getfoldersizeMB(folder):
     return total / 1024 / 1024
 
 
-def listdir_fullpaths(folder):
+def listdir_fullpaths(folder) -> list[str]:
     return [os.path.join(folder, f) for f in os.listdir(folder)]
 
-def printargs(*args, **kwargs):
+def printargs(*args, **kwargs) -> None:
     for a in args: print(a)
     mlen = max([len(str(k)) for k in kwargs]) if len(kwargs) > 0 else 0
     for k,v in kwargs.items(): print(f'{k.ljust(mlen)} = {v}')
@@ -723,16 +718,16 @@ def sec_to_timestr(sec:float) -> str:
     h, m = divmod(m, 60)
     return f'{int(h):02d}h:{int(m):02d}m:{int(s):02d}s'
 
-def get_unique_values(arr:Iterable):
+def get_unique_values[T](arr:Iterable[T]) -> list[T]: # pylint:disable=E0602
     return list(set(arr))
 
 
-def rename_dict_key(d:dict, key:Any, new_key:Any) -> dict:
+def rename_dict_key[K,V](d:dict[K,V], key:K, new_key:Any) -> dict[K,Any]: # pylint:disable=E0602
     d = d.copy()
     d[new_key] = d.pop(key)
     return d
 
-def rename_dict_keys(d:dict, keys:dict[Any,Any], allow_missing=False) -> dict:
+def rename_dict_keys[K,V](d:dict[K,V], keys:dict[K,Any], allow_missing=False) -> dict[K,Any]:# pylint:disable=E0602
     d = d.copy()
     for k,v in keys.items():
         if k not in d:
@@ -741,10 +736,10 @@ def rename_dict_keys(d:dict, keys:dict[Any,Any], allow_missing=False) -> dict:
         d[v] = d.pop(k)
     return d
 
-def rename_dict_key_(d:dict, key:Any, new_key:Any) -> None:
+def rename_dict_key_[K](d:dict[K, Any], key:K, new_key:Any) -> None: # pylint:disable=E0602
     d[new_key] = d.pop(key)
 
-def rename_dict_keys_(d:dict, keys:dict[Any,Any], allow_missing=False) -> None:
+def rename_dict_keys_[K](d:dict[K, Any], keys:dict[K,Any], allow_missing=False) -> None: # pylint:disable=E0602
     for k,v in keys.items():
         if k not in d:
             if allow_missing: continue
@@ -808,11 +803,11 @@ def sequence_to_md_table(s:Sequence[Sequence], keys:Optional[Sequence] = None, f
     return md
 
 __valid_fname_chars = frozenset(" -_.()")
-def is_valid_fname(string:str):
+def is_valid_fname(string:str) -> bool:
     if len(string) == 0: return False
     return all([c in __valid_fname_chars or c.isalnum() for c in string])
 
-def to_valid_fname(string:str, fallback = '-', empty_fallback = 'empty', maxlen = 127, valid_chars = __valid_fname_chars):
+def to_valid_fname(string:str, fallback = '-', empty_fallback = 'empty', maxlen = 127, valid_chars = __valid_fname_chars) -> str:
     """Makes sure filename doesn't have forbidden characters and isn't empty or too long,
     this does not ensure a valid filename as there are a lot of other rules,
     but does a fine job most of the time.
@@ -829,7 +824,7 @@ def to_valid_fname(string:str, fallback = '-', empty_fallback = 'empty', maxlen 
     if len(string) == 0: return empty_fallback
     return ''.join([(c if c in valid_chars or c.isalnum() else fallback) for c in string[:maxlen]])
 
-def to_valid_varname(string:str, fallback = '_', empty_fallback = 'empty', firstdigit_fallback = 'd', maxlen = None):
+def to_valid_varname(string:str, fallback = '_', empty_fallback = 'empty', firstdigit_fallback = 'd', maxlen = None) -> str:
     """Turn arbitrary string to a valid python variable name.
 
     Args:
@@ -848,7 +843,7 @@ def to_valid_varname(string:str, fallback = '_', empty_fallback = 'empty', first
     return name
 
 
-def print_callable_defaults(c, end = '\n'):
+def print_callable_defaults(c, end = '\n') -> None:
     signature = inspect.signature(c)
     for k, v in signature.parameters.items():
         if v.default is not inspect.Parameter.empty:

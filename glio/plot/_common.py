@@ -91,6 +91,7 @@ def _img_norm(x:np.ndarray | torch.Tensor, vmin=None,vmax=None) -> np.ndarray:
 def _img_norm_tensor(x:np.ndarray | torch.Tensor, vmin=None,vmax=None) -> torch.Tensor:
     if isinstance(x, torch.Tensor): x = x.detach().cpu()
     else: x = torch.from_numpy(x)
+    if x.numel() == 0: return x
     x = x.to(torch.float32)#  type:ignore
     if vmin or vmax: x = np.clip(x, vmin, vmax)
     x -= x.min()

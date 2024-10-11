@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 import SimpleITK as sitk
 def crop_bg(input:str | sitk.Image) -> sitk.Image:
-    if isinstance(input, str): input = sitk.ReadImage(input)
+    if isinstance(input, str): input = sitk.RescaleIntensity(sitk.ReadImage(input), 0, 255)
     tissue_filter = sitk.LabelShapeStatisticsImageFilter()
     tissue_filter.Execute(sitk.OtsuThreshold(input, 0, 255))
     tissue = tissue_filter.GetBoundingBox(255)
@@ -9,7 +9,7 @@ def crop_bg(input:str | sitk.Image) -> sitk.Image:
 
 def crop_bg_imgs(inputs:str | sitk.Image | Sequence[str | sitk.Image]) -> list[sitk.Image]:
     if not isinstance(inputs, Sequence): inputs = [inputs]
-    inputs = [sitk.ReadImage(i) if isinstance(i, str) else i for i in inputs]
+    inputs = [sitk.RescaleIntensity(sitk.ReadImage(i),0,255) if isinstance(i, str) else i for i in inputs]
     tissue_filter = sitk.LabelShapeStatisticsImageFilter()
     tissue_filter.Execute(sitk.OtsuThreshold(inputs[0], 0, 255))
     tissue = tissue_filter.GetBoundingBox(255)

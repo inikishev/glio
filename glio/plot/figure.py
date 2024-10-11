@@ -292,7 +292,7 @@ class Plot:
     ):
         """Overlay up to 7 classes of segmentation, where each pixel is has only one class."""
         if isinstance(x, torch.Tensor): x = x.detach().cpu()
-        elif not isinstance(x, (np.ndarray,torch.Tensor)): x = torch.from_numpy(np.array(x))
+        elif not isinstance(x, torch.Tensor): x = torch.from_numpy(np.array(x))
         # argmax if not argmaxed
         if x.ndim == 3:
             if mode == 'auto':

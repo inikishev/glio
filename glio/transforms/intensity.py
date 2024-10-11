@@ -1,4 +1,4 @@
-from typing import Optional, Any
+from typing import Optional, Any, overload
 import random
 import torch, numpy as np
 
@@ -39,7 +39,11 @@ __all__ = [
     "RandContrast",
 ]
 
-def znorm(x:torch.Tensor | np.ndarray, mean=0., std=1.) -> Any:
+@overload
+def znorm(x:torch.Tensor, mean=0., std=1.) -> torch.Tensor: ...
+@overload
+def znorm(x:np.ndarray, mean=0., std=1.) -> np.ndarray: ...
+def znorm(x:torch.Tensor | np.ndarray, mean=0., std=1.) -> torch.Tensor | np.ndarray:
     """Global z-normalization"""
     if x.std() != 0: return ((x - x.mean()) / (x.std() / std)) + mean
     return x - x.mean()
@@ -125,8 +129,11 @@ class RandZNormBatch(RandomTransform):
         self.p = p
     def forward(self, x): return rand_znormbatch(x, self.mean, self.std)
 
-
-def norm(x:torch.Tensor | np.ndarray, min=0, max=1): #pylint:disable=W0622
+@overload
+def norm(x:torch.Tensor, min:float=0., max:float=1.) -> torch.Tensor: ...
+@overload
+def norm(x:np.ndarray, min:float=0., max:float=1.) -> np.ndarray: ...
+def norm(x:torch.Tensor | np.ndarray, min:float=0., max:float=1.) -> torch.Tensor | np.ndarray:
     """Normalize to `[min, max]`"""
     x -= x.min()
     xmax = x.max()
@@ -151,7 +158,11 @@ class RandShift(RandomTransform):
         self.p = p
     def forward(self, x): return rand_shift(x, self.val)
 
-def rand_scale(x:torch.Tensor | np.ndarray, val = (0.5, 2)):
+@overload
+def rand_scale(x:torch.Tensor, val = (0.5, 2)) -> torch.Tensor: ...
+@overload
+def rand_scale(x:np.ndarray, val = (0.5, 2)) -> np.ndarray: ...
+def rand_scale(x:torch.Tensor | np.ndarray, val = (0.5, 2)) -> torch.Tensor | np.ndarray:
     """Scale the input by a random amount. """
     return x * random.uniform(*val)
 

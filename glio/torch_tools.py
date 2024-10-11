@@ -753,16 +753,29 @@ class CreateIterator:
     def __iter__(self): return self.iterable
 
 class MRISlicer:
-    def __init__(self, tensor:torch.Tensor, seg:torch.Tensor, num_classes:int, around:int = 1, any_prob:float = 0.05, warn_empty = True):
+    def __init__(
+        self,
+        tensor: torch.Tensor,
+        seg: torch.Tensor,
+        num_classes: Optional[int] = None,
+        around: int = 1,
+        any_prob: float = 0.05,
+        warn_empty=True,
+    ):
         if tensor.ndim != 4: raise ValueError(f"`tensor` is {tensor.shape}")
         if seg.ndim not in (3, 4): raise ValueError(f"`seg` is {seg.shape}")
-        if seg.ndim == 4: seg = seg.argmax(0)
+        if seg.ndim == 4:
+            if num_classes is None: num_classes = seg.size(0)
+            elif num_classes < seg.size(0): raise ValueError(f'{seg.shape = } (first dimension should be same as num_classes), but {num_classes = }')
+            seg = seg.argmax(0)
+        elif num_classes is None: raise ValueError('`num_classes` needs to be specified when `seg` is not one-hot encoded.')
 
-        self.tensor = tensor
-        self.seg = seg
-        self.num_classes = num_classes
+        self.tensor: torch.Tensor = tensor
+        self.seg: torch.Tensor = seg
+        self.num_classes: int = num_classes
 
-        if self.tensor.shape[1:] != self.seg.shape: raise ValueError(f"Shapes don't match: image is {self.tensor.shape}, seg is {self.seg.shape}")
+        if self.tensor.shape[1:] != self.seg.shape:
+            raise ValueError(f"Shapes don't match: image is {self.tensor.shape}, seg is {self.seg.shape}")
 
         self.x,self.y,self.z = [],[],[]
 
